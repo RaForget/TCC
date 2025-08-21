@@ -1,0 +1,2 @@
+Arrumar controle para WASD/SETAS + SpaceBar
+

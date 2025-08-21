@@ -5,30 +5,29 @@ import os
 
 def get_terminal_output():
     """
-    Executa get.py e retorna sua saída do terminal de forma segura
+    Executa get.py e retorna sua saída do terminal
     """
     try:
         # Tenta executar o get.py
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        get_script = os.path.join(script_dir, 'get.py')
+        get_script = os.path.join(script_dir, '..', '..', 'get.py')
         
         result = subprocess.run(['python', get_script], 
                               capture_output=True, 
                               text=True,
-                              timeout=2)  # Timeout de 2 segundos
+                              timeout=2)  
         
         if result.returncode == 0 and result.stdout:
             return result.stdout.strip()
         return None
             
-    except subprocess.TimeoutExpired:
-        return None
-    except Exception:
+    except Exception as e:
+        print(f"Erro ao executar get.py: {e}")
         return None
 
 def process_terminal_data(terminal_data):
     """
-    Processa os dados de velocidade linear e angular do terminal
+    Processa os dados do terminal
     """
     try:
         # Usando regex para extrair os valores de velocidade
@@ -36,15 +35,12 @@ def process_terminal_data(terminal_data):
         match = re.search(pattern, terminal_data)
         
         if match:
-            velocidade = {
+            return {
                 "Linear": float(match.group(1)),
                 "Angular": float(match.group(2))
             }
-            return velocidade
-        else:
-            st.warning("Formato de dados não reconhecido")
-            return None
+        return None
             
     except Exception as e:
-        st.error(f"Erro ao processar dados: {e}")
+        print(f"Erro ao processar dados: {e}")
         return None

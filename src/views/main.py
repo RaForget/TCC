@@ -1,11 +1,17 @@
 # Para rodar o app, use o comando: streamlit run ElderlyHater.py
 import streamlit as st
-import base64  # Import necessário para codificar em base64
+import sys
+import base64
+from pathlib import Path
 
-# Importar variáveis de outros arquivos via funções
-from processamento import update_velocity_data, process_position_data
-from parametrizacao import show_parametrizacao
-from controles import show_controles
+# Adiciona o diretório raiz ao PYTHONPATH
+root_dir = str(Path(__file__).parent.parent.parent)
+sys.path.insert(0, root_dir)
+
+# Imports absolutos
+from src.handlers.processamento import update_velocity_data, process_position_data
+from src.views.parametrizacao import show_parametrizacao
+from src.views.controles import show_controles
 
 # Configuração da página com sidebar inicial expandida
 st.set_page_config(
@@ -30,8 +36,8 @@ def main():
         with col1:
         # HTML e CSS para redimensionar imagens
             try:
-                # Carregar imagem
-                with open("assets/Simulacao.png", "rb") as img:
+                image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
+                with open(image_path, "rb") as img:
                     img_bytes = img.read()
                     img_base64 = base64.b64encode(img_bytes).decode("utf-8")
 

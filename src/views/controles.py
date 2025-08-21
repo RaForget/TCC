@@ -63,7 +63,7 @@ def show_controles():
     for direction in ['upleft', 'up', 'upright', 'left', 'stop', 'right', 
                      'downleft', 'down', 'downright']:
         if f'{direction}_pressed' in st.session_state and getattr(st.session_state, f'{direction}_pressed'):
-            movimento = direction.replace('up', 'Frente/').replace('down', 'Trás/') \
+            movimento = direction.replace('up', 'Frente ').replace('down', 'Trás ') \
                               .replace('left', 'Esquerda').replace('right', 'Direita') \
                               .replace('stop', 'Parar')
             st.write(f"Movimento: {movimento}")

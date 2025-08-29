@@ -1,4 +1,4 @@
-# Para rodar o app, use o comando: streamlit run ElderlyHater.py
+# Para rodar o app, use o comando: python -m streamlit run .\src\views\main.py
 import streamlit as st
 import sys
 import base64

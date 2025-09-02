@@ -1,15 +1,19 @@
-# Para rodar o app, use o comando: streamlit run ElderlyHater.py
+# Para rodar o app, use o comando: python -m streamlit run .\src\views\main.py
 import streamlit as st
 import sys
 import base64
 from pathlib import Path
+
+import time
+import threading
+import roslibpy
 
 # Adiciona o diretório raiz ao PYTHONPATH
 root_dir = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, root_dir)
 
 # Imports absolutos
-from src.handlers.processamento import update_velocity_data, process_position_data
+# from src.handlers.processamento import update_velocity_data, process_position_data
 from src.views.parametrizacao import show_parametrizacao
 from src.views.controles import show_controles
 
@@ -17,6 +21,7 @@ from src.views.controles import show_controles
 st.set_page_config(
     page_title="Interface de Controle"
 )
+
 
 
 def main():

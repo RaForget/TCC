@@ -10,7 +10,7 @@ def get_terminal_output():
     try:
         # Tenta executar o get.py
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        get_script = os.path.join(script_dir, '..', '..', 'get.py')
+        get_script = os.path.join(script_dir, 'get.py')  # Caminho atualizado
         
         result = subprocess.run(['python', get_script], 
                               capture_output=True, 

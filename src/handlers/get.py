@@ -48,7 +48,8 @@ def interface_loop(robot_state):
 def main():
     # Configura a conexão WebSocket com o ROSBridge
     # rosbridge_ws_url = '192.168.137.150'  # IP do dispositivo ROS - (IP da JETSON)
-    rosbridge_ws_url = '191.52.193.86'  # IP do dispositivo ROS
+    # rosbridge_ws_url = '191.52.193.86'  # IP do dispositivo ROS
+    rosbridge_ws_url = '192.168.1.8'  # IP do dispositivo ROS
 
     robot_state = RobotState()
 

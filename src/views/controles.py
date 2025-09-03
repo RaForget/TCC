@@ -1,70 +1,102 @@
 import streamlit as st
+import roslibpy
+from st_keyup import st_keyup
+
+# A função auxiliar publish_cmd_vel continua a mesma de antes.
+def publish_cmd_vel(publisher, linear_x=0.0, angular_z=0.0):
+    """Cria e publica uma mensagem Twist no tópico /cmd_vel."""
+    if not publisher:
+        st.warning("Publicador do ROS não está inicializado.")
+        return
+    
+    twist = roslibpy.Message({
+        'linear': {'x': linear_x, 'y': 0.0, 'z': 0.0},
+        'angular': {'x': 0.0, 'y': 0.0, 'z': angular_z}
+    })
+    
+    publisher.publish(twist)
+    print(f"Comando enviado: Linear X={linear_x}, Angular Z={angular_z}")
+
 
 def show_controles():
     st.header("Controles")
 
-    # Botões de Start/Stop
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Iniciar", use_container_width=True): 
-            st.session_state.start_pressed = True
-    with col2:
-        if st.button("Parar", use_container_width=True):
-            st.session_state.stop_pressed = True
-
-    if 'start_pressed' in st.session_state and st.session_state.start_pressed:
-        st.success("Sistema iniciado!")
-        st.session_state.start_pressed = False
-    if 'stop_pressed' in st.session_state and st.session_state.stop_pressed:
-        st.error("Sistema parado!")
-        st.session_state.stop_pressed = False
-
-    st.markdown("<br>", unsafe_allow_html=True)
+    # --- Acessa o publicador ROS da sessão ---
+    ros_client = st.session_state.get('ros_client', None)
+    if 'cmd_vel_publisher' not in st.session_state:
+        if ros_client and ros_client.is_connected:
+            st.session_state.cmd_vel_publisher = roslibpy.Topic(
+                ros_client, '/cmd_vel', 'geometry_msgs/Twist'
+            )
+        else:
+            st.session_state.cmd_vel_publisher = None
+    publisher = st.session_state.get('cmd_vel_publisher', None)
     
+    if not publisher:
+        st.error("Não foi possível inicializar o publicador. Verifique a conexão com o ROS.")
+        return
+
+    # --- Definição das Velocidades ---
+    VELOCIDADE_LINEAR = 0.5
+    VELOCIDADE_ANGULAR = 1.0
+
+    # --- PASSO 1: DEFINIR UMA VARIÁVEL PARA A AÇÃO ---
+    movimento_desejado = None
+
+    # --- PASSO 2: CAPTURAR INPUTS E DEFINIR A AÇÃO ---
+    
+    # Input do Teclado
+    key_pressed = st_keyup("Clique aqui e use o teclado (WASD, Setas, Espaço)", key="keyboard_input")
+    if key_pressed:
+        if key_pressed.upper() in ('W', 'ARROWUP'):
+            movimento_desejado = "FRENTE"
+        elif key_pressed.upper() in ('S', 'ARROWDOWN'):
+            movimento_desejado = "RE"
+        elif key_pressed.upper() in ('A', 'ARROWLEFT'):
+            movimento_desejado = "ESQUERDA"
+        elif key_pressed.upper() in ('D', 'ARROWRIGHT'):
+            movimento_desejado = "DIREITA"
+        elif key_pressed == ' ':
+            movimento_desejado = "PARAR"
+
+    # Input dos Botões Visuais (Layout D-Pad)
     st.markdown("### Controle Direcional")
-    
-    _, col_center, _ = st.columns([1, 1, 1])
-    
-    with col_center:
-        col1, col2, col3 = st.columns([1,1,1])
-        with col1:
-            if st.button("↖", key="upleft"):
-                st.session_state.upleft_pressed = True
-        with col2:
-            if st.button("↑", key="up"):
-                st.session_state.up_pressed = True
-        with col3:
-            if st.button("↗", key="upright"):
-                st.session_state.upright_pressed = True
-            
-        left_col, mid_col, right_col = st.columns([1,1,1])
-        with left_col:
-            if st.button("←", key="left"):
-                st.session_state.left_pressed = True
-        with mid_col:
-            if st.button("⏹", key="stop"):
-                st.session_state.stop_pressed = True
-        with right_col:
-            if st.button("→", key="right"):
-                st.session_state.right_pressed = True
+    _, dpad_col, _ = st.columns([1, 1, 1])
+    with dpad_col:
+        r1c1, r1c2, r1c3 = st.columns(3)
+        if r1c2.button("↑", use_container_width=True, key="up_btn"):
+            movimento_desejado = "FRENTE"
 
-        col7, col8, col9 = st.columns([1,1,1])
-        with col7:
-            if st.button("↙", key="downleft"):
-                st.session_state.downleft_pressed = True
-        with col8:
-            if st.button("↓", key="down"):
-                st.session_state.down_pressed = True
-        with col9:
-            if st.button("↘", key="downright"):
-                st.session_state.downright_pressed = True
+        r2c1, r2c2, r2c3 = st.columns(3)
+        if r2c1.button("←", use_container_width=True, key="left_btn"):
+            movimento_desejado = "ESQUERDA"
+        if r2c2.button("⏹️", use_container_width=True, key="stop_btn"):
+            movimento_desejado = "PARAR"
+        if r2c3.button("→", use_container_width=True, key="right_btn"):
+            movimento_desejado = "DIREITA"
 
-    # Feedback das teclas
-    for direction in ['upleft', 'up', 'upright', 'left', 'stop', 'right', 
-                     'downleft', 'down', 'downright']:
-        if f'{direction}_pressed' in st.session_state and getattr(st.session_state, f'{direction}_pressed'):
-            movimento = direction.replace('up', 'Frente ').replace('down', 'Trás ') \
-                              .replace('left', 'Esquerda').replace('right', 'Direita') \
-                              .replace('stop', 'Parar')
-            st.write(f"Movimento: {movimento}")
-            setattr(st.session_state, f'{direction}_pressed', False)
+        r3c1, r3c2, r3c3 = st.columns(3)
+        if r3c2.button("↓", use_container_width=True, key="down_btn"):
+            movimento_desejado = "RE"
+
+    # --- PASSO 3: PROCESSAMENTO CENTRALIZADO DA AÇÃO ---
+    # Este bloco só executa se uma ação foi definida (pelo teclado OU por um botão)
+    if movimento_desejado:
+        if movimento_desejado == "FRENTE":
+            publish_cmd_vel(publisher, linear_x=VELOCIDADE_LINEAR)
+        elif movimento_desejado == "RE":
+            publish_cmd_vel(publisher, linear_x=-VELOCIDADE_LINEAR)
+        elif movimento_desejado == "ESQUERDA":
+            publish_cmd_vel(publisher, angular_z=VELOCIDADE_ANGULAR)
+        elif movimento_desejado == "DIREITA":
+            publish_cmd_vel(publisher, angular_z=-VELOCIDADE_ANGULAR)
+        elif movimento_desejado == "PARAR":
+            publish_cmd_vel(publisher, linear_x=0.0, angular_z=0.0)
+        
+        # Atualiza o feedback visual
+        st.session_state.last_command = movimento_desejado
+        st.toast(f"Comando: {movimento_desejado}")
+
+    # Exibe o último comando enviado
+    last_command = st.session_state.get('last_command', 'Nenhum')
+    st.metric("Último Comando Enviado", last_command)

@@ -3,29 +3,24 @@ import streamlit as st
 import sys
 import base64
 from pathlib import Path
-
 import time
-import threading
-import roslibpy
 
 # Adiciona o diretório raiz ao PYTHONPATH
 root_dir = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, root_dir)
 
 # Imports absolutos
-# from src.handlers.processamento import update_velocity_data, process_position_data
+from src.handlers.ros_handler import initialize_ros_connection
 from src.views.parametrizacao import show_parametrizacao
 from src.views.controles import show_controles
 
 # Configuração da página com sidebar inicial expandida
-st.set_page_config(
-    page_title="Interface de Controle"
-)
-
-
+st.set_page_config(page_title="Interface de Controle")
 
 def main():
-    # st.title("GUI")
+
+    if 'ros_client' not in st.session_state:
+        st.session_state.robot_state, st.session_state.ros_client = initialize_ros_connection()
     
     # Menu de navegação
     menu = st.sidebar.selectbox(
@@ -42,113 +37,28 @@ def main():
         # HTML e CSS para redimensionar imagens
             try:
                 image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
-                with open(image_path, "rb") as img:
-                    img_bytes = img.read()
-                    img_base64 = base64.b64encode(img_bytes).decode("utf-8")
-
-                    st.markdown(
-                        f"""
-                        <style>
-                            /* ----- Mapa ----- */
-                            .map-container {{
-                                position: absolute;
-                                top: 0px;
-                                left: 0;
-                                width: 100%; /* Ocupa toda a largura da tela */
-                                height: 350px;
-                                z-index: 1000;
-                                border: 2px solid #0000FF; /* Adiciona uma borda azul */
-                            }}
-                            .map-container img {{
-                                width: 100%;
-                                height: 100%;
-                                object-fit: cover; /* Garante que a imagem preencha a div */
-                                cursor: pointer; /* Mostra o cursor de clique */
-                            }}
-                        </style>
-                        <div class="map-container">
-                            <a href="https://example.com" target="_blank">
-                            <img src="data:image/png;base64,{img_base64}">
-                            </a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-            except FileNotFoundError:
-                st.error("O arquivo de vídeo não foi encontrado. Verifique o caminho e tente novamente.")
+                st.image(str(image_path), use_container_width=True)
+            except Exception as e:
+                st.error(f"Erro ao carregar a imagem: {e}")
                 
         with col2:
-            st.markdown(
-                """
-                <style>
-                .centered-text {
-                    text-align: center;
-                    margin-bottom: 20px;
-                }
-                .status-indicator {
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 50%;
-                    display: inline-block;
-                    margin-right: 5px;
-                }
-                .status-online {
-                    background-color: #28a745;
-                }
-                .status-offline {
-                    background-color: #dc3545;
-                }
-                </style>
-                """, 
-                unsafe_allow_html=True
-            )
-    
-            # Tenta atualizar dados de velocidade
-            velocidade = update_velocity_data()
-            
-            # Indicador de status
-            if velocidade is None:
-                st.markdown(
-                    """
-                    <div style='text-align: center'>
-                        <span class='status-indicator status-offline'></span>
-                        <span>Offline</span>
-                    </div>
-                    """, 
-                    unsafe_allow_html=True
-                )
-                # Mostra valores padrão quando offline
-                st.markdown("<p class='centered-text'><strong>Velocidade</strong></p>", 
-                          unsafe_allow_html=True)
-                st.markdown(
-                    "<p class='centered-text'>Linear: 0.0<br>Angular: 0.0</p>",
-                    unsafe_allow_html=True
-                )
+
+            robot_state = st.session_state.get('robot_state', None)
+            ros_client = st.session_state.get('ros_client', None)
+
+            # Verifica se a conexão está ativa para decidir o que mostrar
+            if robot_state and ros_client and ros_client.is_connected:
+                # Se ONLINE, busca os dados em tempo real do objeto de estado
+                linear, angular = robot_state.get_velocity()
+
+                st.success("Online")
+                st.metric(label="Velocidade Linear (m/s)", value=f"{linear:.4f}")
+                st.metric(label="Velocidade Angular (rad/s)", value=f"{angular:.4f}")
             else:
-                st.markdown(
-                    """
-                    <div style='text-align: center'>
-                        <span class='status-indicator status-online'></span>
-                        <span>Online</span>
-                    </div>
-                    """, 
-                    unsafe_allow_html=True
-                )
-                st.markdown("<p class='centered-text'><strong>Velocidade</strong></p>", 
-                          unsafe_allow_html=True)
-                st.markdown(
-                    f"<p class='centered-text'>Linear: {velocidade['Linear']} | Angular: {velocidade['Angular']}</p>",
-                    unsafe_allow_html=True
-                )
-            
-            # Atualiza dados de posição
-            #posicao = process_position_data()
-            #st.markdown("<p class='centered-text'><strong>Posição</strong></p>", 
-            #          unsafe_allow_html=True)
-            #st.markdown(
-            #    f"<p class='centered-text'>X: {posicao['X']} | Y: {posicao['Y']} | Z: {posicao['Z']}</p>",
-            #    unsafe_allow_html=True
-            #)
+                # Se OFFLINE, mostra os valores padrão
+                st.error("Offline")
+                st.metric(label="Velocidade Linear (m/s)", value="0.0")
+                st.metric(label="Velocidade Angular (rad/s)", value="0.0")
 
 # ----------------------------------------- Parametrização ------------------------------------------------        
 
@@ -162,3 +72,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    # Força a página a recarregar e atualizar os dados a cada meio segundo.
+    try:
+        time.sleep(0.5)
+        st.rerun()
+    except Exception as e:
+        # Evita erros se a conexão for fechada abruptamente
+        st.stop()

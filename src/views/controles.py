@@ -1,6 +1,7 @@
 import streamlit as st
 import roslibpy
 import streamlit.components.v1 as components
+import json
 
 # A função auxiliar publish_cmd_vel continua a mesma de antes.
 def publish_cmd_vel(publisher, linear_x=0.0, angular_z=0.0):
@@ -25,29 +26,39 @@ def keyboard_listener(key_to_watch: list, key_name: str):
     # O código JavaScript que será executado no navegador do usuário
     javascript_code = f"""
     <script>
+    const pressedKeys = new Set();
+    
+    const sendDataToStreamlit = (data) => {{
+        window.parent.postMessage({{
+            isStreamlitMessage: true,
+            type: "SET_COMPONENT_VALUE",
+            key: "{key_name}",
+            value: data
+        }}, "*");
+    }};
+
     document.addEventListener('keydown', function(event) {{
-        // Lista de teclas que nos interessam
-        const watchKeys = {key_to_watch};
-        
-        // Verifica se a tecla pressionada está na nossa lista
-        if (watchKeys.includes(event.key)) {{
-            // Impede a ação padrão do navegador (ex: rolar a página com as setas)
+        const watchKeys = {json.dumps(key_to_watch)};
+        if (watchKeys.includes(event.key) && !pressedKeys.has(event.key)) {{
             event.preventDefault();
-            
-            // Envia o nome da tecla de volta para o Python/Streamlit
-            window.parent.postMessage({{
-                isStreamlitMessage: true,
-                type: "SET_COMPONENT_VALUE",
-                key: "{key_name}",
-                value: event.key
-            }}, "*");
+            pressedKeys.add(event.key);
+            sendDataToStreamlit({{type: 'keydown', key: event.key}});
+        }}
+    }});
+
+    document.addEventListener('keyup', function(event) {{
+        const watchKeys = {json.dumps(key_to_watch)};
+        if (watchKeys.includes(event.key)) {{
+            event.preventDefault();
+            pressedKeys.delete(event.key);
+            sendDataToStreamlit({{type: 'keyup', key: event.key}});
         }}
     }});
     </script>
     """
     # Renderiza o componente HTML/JS e retorna o valor enviado pelo JavaScript
-    pressed_key = components.html(javascript_code, height=0, width=0)
-    return pressed_key
+    event_data = components.html(javascript_code, height=0, width=0)
+    return event_data
 
 def show_controles():
     st.header("Controles")

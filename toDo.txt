@@ -1,2 +1,8 @@
-Arrumar controle para WASD/SETAS + SpaceBar
+Hold-down -> controle
+
+comunicação post
+
+mapeamento 
+
+lidar
 

@@ -34,7 +34,7 @@ def cmd_vel_callback(message, robot_state):
 def initialize_ros_connection():
     # IMPORTANTE: Coloque o IP da sua VM ROS aqui!
     # ROS_IP = '191.52.193.86' 
-    ROS_IP = os.getenv('ROS_IP', '192.168.1.8') # Valor padrão caso a variável não exista
+    ROS_IP = os.getenv('ROS_IP', '192.168.1.11') # Valor padrão caso a variável não exista
 
     try:
         robot_state = RobotState()

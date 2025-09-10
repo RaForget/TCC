@@ -20,11 +20,26 @@ st.set_page_config(page_title="Interface de Controle")
 def main():
 
     if 'ros_client' not in st.session_state:
-        st.session_state.robot_state, st.session_state.ros_client = initialize_ros_connection()
+        with st.spinner('Conectando ao robô...'):
+            st.session_state.robot_state, st.session_state.ros_client = initialize_ros_connection()
+
+    st.sidebar.title("Configurações")
     
+    # Inicializa o estado do interruptor como True
+    if 'auto_update_enabled' not in st.session_state:
+        st.session_state.auto_update_enabled = True
+
+    # Cria o widget de toggle e o vincula à variável da sessão
+    st.session_state.auto_update_enabled = st.sidebar.toggle(
+        "Habilitar atualização em tempo real", 
+        value=st.session_state.auto_update_enabled,
+        help="Quando ativado, os dados da interface são atualizados automaticamente."
+    )
+    
+    st.sidebar.title("Navegação")
     # Menu de navegação
     menu = st.sidebar.selectbox(
-        "Menu",
+        "Telas",
         ["Visualização", "Parametrização", "Controles"]
     )
 
@@ -73,10 +88,11 @@ def main():
 if __name__ == "__main__":
     main()
 
-    # Força a página a recarregar e atualizar os dados a cada meio segundo.
-    try:
-        time.sleep(0.5)
-        st.rerun()
-    except Exception as e:
-        # Evita erros se a conexão for fechada abruptamente
-        st.stop()
+    if st.session_state.get('auto_update_enabled', False):
+        # Força a página a recarregar e atualizar os dados a cada meio segundo.
+        try:
+            time.sleep(0.5)
+            st.rerun()
+        except Exception as e:
+            # Evita erros se a conexão for fechada abruptamente
+            st.stop()

@@ -61,3 +61,32 @@ def initialize_ros_connection():
     except Exception as e:
         print(f"Erro ao inicializar conexão ROS: {e}")
         return None, None
+    
+# ------------------------------------- POST -------------------------------------
+
+def send_velocity_command(publisher, linear_x=0.0, angular_z=0.0):
+    """
+    Cria e publica uma mensagem Twist no tópico /cmd_vel.
+    Esta função centraliza a lógica de envio de comandos.
+    """
+    if not publisher:
+        print("Aviso: Tentativa de publicar sem um publicador inicializado.")
+        return
+    
+    # Cria a mensagem no formato que o ROS espera
+    twist = roslibpy.Message({
+        'linear': {
+            'x': linear_x,
+            'y': 0.0,
+            'z': 0.0
+        },
+        'angular': {
+            'x': 0.0,
+            'y': 0.0,
+            'z': angular_z
+        }
+    })
+    
+    # Publica a mensagem
+    publisher.publish(twist)
+    print(f"Comando enviado: Linear X={linear_x}, Angular Z={angular_z}")

@@ -2,7 +2,7 @@ import roslibpy
 import time
 
 # Conecte-se ao servidor rosbridge
-client = roslibpy.Ros(host='192.168.137.150', port=9090)
+client = roslibpy.Ros(host='192.168.1.11', port=9090)
 client.run()
 
 if client.is_connected:

@@ -2,6 +2,7 @@ import streamlit as st
 import roslibpy
 import streamlit.components.v1 as components
 import json
+# from src.handlers.ros_handler import send_velocity_command 
 
 # A função auxiliar publish_cmd_vel continua a mesma de antes.
 def publish_cmd_vel(publisher, linear_x=0.0, angular_z=0.0):

@@ -1,7 +1,6 @@
 # Para rodar o app, use o comando: python -m streamlit run .\src\views\main.py
 import streamlit as st
 import sys
-import base64
 from pathlib import Path
 import time
 
@@ -10,7 +9,7 @@ root_dir = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, root_dir)
 
 # Imports absolutos
-from src.handlers.ros_handler import initialize_ros_connection
+from src.handlers.ros_handler import initialize_ros_connection#, send_velocity_command
 from src.views.parametrizacao import show_parametrizacao
 from src.views.controles import show_controles
 
@@ -21,7 +20,7 @@ def main():
 
     if 'ros_client' not in st.session_state:
         with st.spinner('Conectando ao robô...'):
-            st.session_state.robot_state, st.session_state.ros_client = initialize_ros_connection()
+            st.session_state.robot_state, st.session_state.ros_client, st.session_state.cmd_vel_publisher = initialize_ros_connection()
 
     st.sidebar.title("Configurações")
     

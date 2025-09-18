@@ -52,7 +52,11 @@ def initialize_ros_connection():
             print("Conectado ao ROS com sucesso!")
             cmd_vel_subscriber = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
             cmd_vel_subscriber.subscribe(lambda message: cmd_vel_callback(message, robot_state))
-            return robot_state, client
+
+            # Este objeto será usado para ENVIAR comandos para o robô.
+            cmd_vel_publisher = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+            
+            return robot_state, client, cmd_vel_publisher
         else:
             print(f"Falha ao conectar com o ROS em {timeout} segundos.")
             client.terminate()

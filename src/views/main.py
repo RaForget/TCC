@@ -9,7 +9,7 @@ root_dir = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, root_dir)
 
 # Imports absolutos
-from src.handlers.ros_handler import initialize_ros_connection#, send_velocity_command
+# Import do ros_handler será feito dentro de main() para evitar import circular
 from src.views.parametrizacao import show_parametrizacao
 from src.views.controles import show_controles
 
@@ -18,9 +18,29 @@ st.set_page_config(page_title="Interface de Controle")
 
 def main():
 
+    # Import dinâmico via importlib + getattr para evitar ImportError em import circular
+    import importlib
+    ros_handler = importlib.import_module('src.handlers.ros_handler')
+    initialize_ros_connection = getattr(ros_handler, 'initialize_ros_connection')
+    enable_post = getattr(ros_handler, 'enable_post', None)
+    disable_post = getattr(ros_handler, 'disable_post', None)
+    is_post_enabled = getattr(ros_handler, 'is_post_enabled', lambda: False)
+
     if 'ros_client' not in st.session_state:
         with st.spinner('Conectando ao robô...'):
-            st.session_state.robot_state, st.session_state.ros_client, st.session_state.cmd_vel_publisher = initialize_ros_connection()
+            try:
+                result = initialize_ros_connection()
+                # garante que sempre teremos 3 elementos
+                if not isinstance(result, tuple):
+                    result = (None, None, None)
+                # padroniza tamanho
+                robot_state, ros_client, cmd_vel_pub = (result + (None, None, None))[:3]
+            except Exception:
+                robot_state, ros_client, cmd_vel_pub = (None, None, None)
+
+            st.session_state.robot_state = robot_state
+            st.session_state.ros_client = ros_client
+            st.session_state.cmd_vel_publisher = cmd_vel_pub
 
     st.sidebar.title("Configurações")
     
@@ -28,12 +48,33 @@ def main():
     if 'auto_update_enabled' not in st.session_state:
         st.session_state.auto_update_enabled = True
 
+    # Inicializa o estado do POST toggle na sessão com o valor atual
+    if 'post_enabled' not in st.session_state:
+        st.session_state.post_enabled = is_post_enabled()
+
     # Cria o widget de toggle e o vincula à variável da sessão
     st.session_state.auto_update_enabled = st.sidebar.toggle(
         "Habilitar atualização em tempo real", 
         value=st.session_state.auto_update_enabled,
         help="Quando ativado, os dados da interface são atualizados automaticamente."
     )
+
+    # Toggle para habilitar/desabilitar envios POST (comunicação ROS)
+    new_post_enabled = st.sidebar.toggle(
+        "Habilitar envios ROS (POST)",
+        value=st.session_state.post_enabled,
+        help="Quando desativado, comandos não serão publicados no ROS."
+    )
+
+    # Atualiza o estado apenas quando houver mudança
+    if new_post_enabled != st.session_state.post_enabled:
+        st.session_state.post_enabled = new_post_enabled
+        if new_post_enabled:
+            if enable_post:
+                enable_post()
+        else:
+            if disable_post:
+                disable_post()
     
     st.sidebar.title("Navegação")
     # Menu de navegação
@@ -51,7 +92,7 @@ def main():
         # HTML e CSS para redimensionar imagens
             try:
                 image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
-                st.image(str(image_path), use_container_width=True)
+                st.image(str(image_path), width='stretch')
             except Exception as e:
                 st.error(f"Erro ao carregar a imagem: {e}")
                 

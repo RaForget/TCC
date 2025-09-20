@@ -7,6 +7,28 @@ from dotenv import load_dotenv
 # Carrega variáveis de ambiente
 load_dotenv()
 
+
+# ---------------- Toggle de POST ---------------------------------
+# Variável global que controla se a função de POST é executada
+# Padrão: desabilitado para evitar envios acidentais ao iniciar a interface
+POST_ENABLED = False
+
+def enable_post():
+    """Habilita envios de POST (publish) para o ROS."""
+    global POST_ENABLED
+    POST_ENABLED = True
+    print("POSTs habilitados.")
+
+def disable_post():
+    """Desabilita envios de POST (publish) para o ROS."""
+    global POST_ENABLED
+    POST_ENABLED = False
+    print("POSTs desabilitados.")
+
+def is_post_enabled():
+    """Retorna True se POSTs estiverem habilitados."""
+    return POST_ENABLED
+
 # Classe para armazenar o estado do robô de forma segura entre as threads
 class RobotState:
     def __init__(self):
@@ -60,11 +82,11 @@ def initialize_ros_connection():
         else:
             print(f"Falha ao conectar com o ROS em {timeout} segundos.")
             client.terminate()
-            return None, None
+            return None, None, None
             
     except Exception as e:
         print(f"Erro ao inicializar conexão ROS: {e}")
-        return None, None
+        return None, None, None
     
 # ------------------------------------- POST -------------------------------------
 
@@ -73,6 +95,15 @@ def send_velocity_command(publisher, linear_x=0.0, angular_z=0.0):
     Cria e publica uma mensagem Twist no tópico /cmd_vel.
     Esta função centraliza a lógica de envio de comandos.
     """
+    # Verifica se envio de POSTs está habilitado
+    try:
+        if not is_post_enabled():
+            print("POSTs desabilitados — comando não será enviado.")
+            return
+    except NameError:
+        # Caso as funções de toggle não existam por algum motivo, continua o comportamento padrão
+        pass
+
     if not publisher:
         print("Aviso: Tentativa de publicar sem um publicador inicializado.")
         return
@@ -94,3 +125,4 @@ def send_velocity_command(publisher, linear_x=0.0, angular_z=0.0):
     # Publica a mensagem
     publisher.publish(twist)
     print(f"Comando enviado: Linear X={linear_x}, Angular Z={angular_z}")
+ 

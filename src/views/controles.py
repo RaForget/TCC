@@ -116,19 +116,19 @@ def show_controles():
     _, dpad_col, _ = st.columns([1, 1.2, 1])
     with dpad_col:
         r1c1, r1c2, r1c3 = st.columns(3)
-        if r1c2.button(up_label, use_container_width=True, key="up_btn"):
+        if r1c2.button(up_label, width='stretch', key="up_btn"):
             movimento_desejado = "FRENTE"
 
         r2c1, r2c2, r2c3 = st.columns(3)
-        if r2c1.button(left_label, use_container_width=True, key="left_btn"):
+        if r2c1.button(left_label, width='stretch', key="left_btn"):
             movimento_desejado = "ESQUERDA"
-        if r2c2.button(stop_label, use_container_width=True, key="stop_btn"):
+        if r2c2.button(stop_label, width='stretch', key="stop_btn"):
             movimento_desejado = "PARAR"
-        if r2c3.button(right_label, use_container_width=True, key="right_btn"):
+        if r2c3.button(right_label, width='stretch', key="right_btn"):
             movimento_desejado = "DIREITA"
 
         r3c1, r3c2, r3c3 = st.columns(3)
-        if r3c2.button(down_label, use_container_width=True, key="down_btn"):
+        if r3c2.button(down_label, width='stretch', key="down_btn"):
             movimento_desejado = "RE"
 
     if movimento_desejado:

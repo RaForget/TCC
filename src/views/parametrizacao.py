@@ -24,10 +24,10 @@ def show_parametrizacao():
     # Cria os botões dentro de um container
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Modo Competição", use_container_width=True): 
+        if st.button("Modo Competição", width='stretch'): 
             st.session_state.start_pressed = True
     with col2:
-        if st.button("Modo Teste", use_container_width=True):
+        if st.button("Modo Teste", width='stretch'):
             st.session_state.stop_pressed = True
 
     if 'start_pressed' in st.session_state and st.session_state.start_pressed:

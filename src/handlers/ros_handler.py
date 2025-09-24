@@ -1,8 +1,7 @@
 import threading
-import roslibpy
 import os
-import time
-from dotenv import load_dotenv 
+import roslibpy
+from dotenv import load_dotenv
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -45,50 +44,62 @@ class RobotState:
         with self._lock:
             return self.linear_velocity, self.angular_velocity
 
-# Função "callback"
+# Estado do mapa (armazena a última mensagem recebida)
+class MapState:
+    def __init__(self):
+        self.last_map = None
+        self._lock = threading.Lock()
+
+    def update_map(self, map_msg):
+        with self._lock:
+            self.last_map = map_msg
+
+    def get_map(self):
+        with self._lock:
+            return self.last_map
+
 def cmd_vel_callback(message, robot_state):
-    linear = message['linear']['x']
-    angular = message['angular']['z']
-    robot_state.update_velocity(linear, angular)
-    print(f"Dados recebidos: Linear={linear:.4f}, Angular={angular:.4f}")
-
-# Função para iniciar a conexão
-def initialize_ros_connection():
-    # IMPORTANTE: Coloque o IP da sua VM ROS aqui!
-    # ROS_IP = '191.52.193.86' 
-    ROS_IP = os.getenv('ROS_IP', '192.168.3.18') # Valor padrão caso a variável não exista
-
     try:
-        robot_state = RobotState()
-        client = roslibpy.Ros(host=ROS_IP, port=9090)
-        
-        print("Tentando conectar ao ROSBridge em {ROS_IP}:9090...")
-        client.run()
+        linear = message['linear']['x']
+        angular = message['angular']['z']
+        robot_state.update_velocity(linear, angular)
+    except Exception:
+        pass
 
-        timeout = 10  # segundos
-        start_time = time.time()
-        while not client.is_connected and time.time() - start_time < timeout:
-            time.sleep(0.1)
+def map_callback(message, map_state):
+    # Recebe nav_msgs/OccupancyGrid (ou outro formato) e guarda a mensagem raw
+    map_state.update_map(message)
 
-        if client.is_connected:
-            print("Conectado ao ROS com sucesso!")
-            cmd_vel_subscriber = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
-            cmd_vel_subscriber.subscribe(lambda message: cmd_vel_callback(message, robot_state))
+def initialize_ros_connection(host=None, port=9090, timeout=5):
+    """
+    Conecta ao rosbridge e cria publishers/subscribers.
+    Retorna: (robot_state, map_state, client, cmd_vel_publisher)
+    """
+    host = host or os.getenv('ROSBRIDGE_HOST', '192.168.1.12')
+    port = int(os.getenv('ROSBRIDGE_PORT', port))
 
-            # Este objeto será usado para ENVIAR comandos para o robô.
-            cmd_vel_publisher = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
-            
-            return robot_state, client, cmd_vel_publisher
-        else:
-            print(f"Falha ao conectar com o ROS em {timeout} segundos.")
-            client.terminate()
-            return None, None, None
-            
-    except Exception as e:
-        print(f"Erro ao inicializar conexão ROS: {e}")
-        return None, None, None
-    
-# ------------------------------------- POST -------------------------------------
+    client = roslibpy.Ros(host=host, port=port)
+    client.run(timeout=timeout)
+
+    robot_state = RobotState()
+    map_state = MapState()
+
+    if client.is_connected:
+        # Publisher (se você precisar enviar comandos)
+        cmd_vel_pub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+
+        # Subscribers
+        cmd_vel_sub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+        cmd_vel_sub.subscribe(lambda msg: cmd_vel_callback(msg, robot_state))
+
+        # Assumimos que /map é nav_msgs/OccupancyGrid; ajuste se for outro tipo
+        map_sub = roslibpy.Topic(client, '/map', 'nav_msgs/OccupancyGrid')
+        map_sub.subscribe(lambda msg: map_callback(msg, map_state))
+
+        return robot_state, map_state, client, cmd_vel_pub
+    else:
+        # falha na conexão
+        return None, None, None, None
 
 def send_velocity_command(publisher, linear_x=0.0, angular_z=0.0):
     """
@@ -124,5 +135,11 @@ def send_velocity_command(publisher, linear_x=0.0, angular_z=0.0):
     
     # Publica a mensagem
     publisher.publish(twist)
-    print(f"Comando enviado: Linear X={linear_x}, Angular Z={angular_z}")
- 
+
+__all__ = [
+    'RobotState',
+    'MapState',
+    'initialize_ros_connection',
+    'send_velocity_command'
+]
+

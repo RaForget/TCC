@@ -30,17 +30,17 @@ def main():
         with st.spinner('Conectando ao robô...'):
             try:
                 result = initialize_ros_connection()
-                # garante que sempre teremos 3 elementos
+                # garante tamanho e desempacota (robot_state, map_state, client, cmd_vel_pub)
                 if not isinstance(result, tuple):
-                    result = (None, None, None)
-                # padroniza tamanho
-                robot_state, ros_client, cmd_vel_pub = (result + (None, None, None))[:3]
+                    result = (None, None, None, None)
+                robot_state, map_state, ros_client, cmd_vel_pub = (result + (None, None, None, None))[:4]
             except Exception:
-                robot_state, ros_client, cmd_vel_pub = (None, None, None)
+                robot_state, map_state, ros_client, cmd_vel_pub = (None, None, None, None)
 
             st.session_state.robot_state = robot_state
+            st.session_state.map_state = map_state
             st.session_state.ros_client = ros_client
-            st.session_state.cmd_vel_publisher = cmd_vel_pub
+            st.session_state.cmd_vel_publisher = ros_client and ros_client.is_connected and ros_client or None
 
     st.sidebar.title("Configurações")
     

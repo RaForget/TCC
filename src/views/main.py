@@ -89,13 +89,64 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            # HTML e CSS para redimensionar imagens
-            try:
-                image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
-                st.image(str(image_path), width='stretch')
-            except Exception as e:
-                st.error(f"Erro ao carregar a imagem: {e}")
-                
+            # Mostrar mapa gerado a partir de /map (OccupancyGrid). Se não houver mapa, exibe imagem de simulação como fallback.
+            map_state = st.session_state.get('map_state', None)
+            if map_state:
+                last_map = None
+                try:
+                    last_map = map_state.get_map()
+                except Exception:
+                    last_map = None
+
+                if last_map and isinstance(last_map, dict) and 'data' in last_map and 'info' in last_map:
+                    try:
+                        import numpy as np
+                        from PIL import Image
+
+                        info = last_map.get('info', {})
+                        width = int(info.get('width', 0))
+                        height = int(info.get('height', 0))
+
+                        data = np.array(last_map['data'], dtype=np.int16)
+                        if data.size != width * height:
+                            st.write("Dados do mapa com tamanho inesperado")
+                        else:
+                            # Mapear valores de ocupação para tons de cinza:
+                            # -1 (unknown) -> 127, 0 (free) -> 255 (branco), 100 (occupied) -> 0 (preto)
+                            img_arr = np.where(data == -1, 127,
+                                               np.where(data == 0, 255, 0)).astype(np.uint8)
+                            img_arr = img_arr.reshape((height, width))
+
+                            # Ajuste de orientação se necessário (flip/transpose)
+                            img_arr = np.flipud(img_arr)
+
+                            pil_img = Image.fromarray(img_arr, mode='L')
+
+                            # Redimensiona se muito grande
+                            max_display_width = 600
+                            if pil_img.width > max_display_width:
+                                scale = max_display_width / pil_img.width
+                                new_size = (int(pil_img.width * scale), int(pil_img.height * scale))
+                                pil_img = pil_img.resize(new_size, Image.NEAREST)
+
+                            st.image(pil_img, caption="Mapa (/map)", width='stretch')
+                    except Exception as e:
+                        st.write(f"Erro ao gerar imagem do mapa: {e}")
+                else:
+                    # fallback: exibe imagem de simulação se mapa ainda não chegou
+                    try:
+                        image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
+                        st.image(str(image_path), width='stretch')
+                    except Exception:
+                        st.write("Mapa: nenhum dado recebido ainda")
+            else:
+                # se map_state não inicializado, mostra a imagem de simulação ou mensagem
+                try:
+                    image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
+                    st.image(str(image_path), width='stretch')
+                except Exception:
+                    st.write("Mapa: não inicializado")
+
         with col2:
 
             robot_state = st.session_state.get('robot_state', None)
@@ -114,55 +165,6 @@ def main():
                 st.error("Offline")
                 st.metric(label="Velocidade Linear (m/s)", value="0.0")
                 st.metric(label="Velocidade Angular (rad/s)", value="0.0")
-
-            # -------------------- Exibição do mapa (/map) como imagem --------------------
-            map_state = st.session_state.get('map_state', None)
-            if map_state:
-                last_map = None
-                try:
-                    last_map = map_state.get_map()
-                except Exception:
-                    last_map = None
-
-                if last_map and isinstance(last_map, dict) and 'data' in last_map and 'info' in last_map:
-                    try:
-                        # imports locais para evitar dependência global se não for necessário
-                        import numpy as np
-                        from PIL import Image
-
-                        info = last_map.get('info', {})
-                        width = int(info.get('width', 0))
-                        height = int(info.get('height', 0))
-
-                        data = np.array(last_map['data'], dtype=np.int16)
-                        if data.size != width * height:
-                            st.write("Dados do mapa com tamanho inesperado")
-                        else:
-                            # Mapear valores para tons de cinza:
-                            # -1 (unknown) -> 127, 0 (free) -> 255 (branco), 100 (occupied) -> 0 (preto)
-                            img_arr = np.where(data == -1, 127,
-                                               np.where(data == 0, 255, 0)).astype(np.uint8)
-                            img_arr = img_arr.reshape((height, width))
-
-                            # Ajuste de orientação se necessário (flip/transpose)
-                            img_arr = np.flipud(img_arr)
-
-                            pil_img = Image.fromarray(img_arr, mode='L')
-
-                            # Se o mapa for muito grande, opcionalmente redimensionar para caber na coluna
-                            max_display_width = 600
-                            if pil_img.width > max_display_width:
-                                scale = max_display_width / pil_img.width
-                                new_size = (int(pil_img.width * scale), int(pil_img.height * scale))
-                                pil_img = pil_img.resize(new_size, Image.NEAREST)
-
-                            st.image(pil_img, caption="Mapa (/map)", use_container_width=True)
-                    except Exception as e:
-                        st.write(f"Erro ao gerar imagem do mapa: {e}")
-                else:
-                    st.write("Mapa: nenhum dado recebido ainda")
-            else:
-                st.write("Mapa: não inicializado")
 
 # ----------------------------------------- Parametrização ------------------------------------------------        
     elif menu == "Parametrização":

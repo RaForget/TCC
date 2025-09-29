@@ -26,11 +26,10 @@ def main():
     disable_post = getattr(ros_handler, 'disable_post', None)
     is_post_enabled = getattr(ros_handler, 'is_post_enabled', lambda: False)
 
-    if 'ros_client' not in st.session_state:
+    if 'ros_client' not in st.session_state or not getattr(st.session_state.get('ros_client'), 'is_connected', False):
         with st.spinner('Conectando ao robô...'):
             try:
                 result = initialize_ros_connection()
-                # garante tamanho e desempacota (robot_state, map_state, client, cmd_vel_pub)
                 if not isinstance(result, tuple):
                     result = (None, None, None, None)
                 robot_state, map_state, ros_client, cmd_vel_pub = (result + (None, None, None, None))[:4]
@@ -40,7 +39,8 @@ def main():
             st.session_state.robot_state = robot_state
             st.session_state.map_state = map_state
             st.session_state.ros_client = ros_client
-            st.session_state.cmd_vel_publisher = ros_client and ros_client.is_connected and ros_client or None
+            # guarde o publisher corretamente (se initialize_ros_connection retornar cmd_vel_pub no índice 3)
+            st.session_state.cmd_vel_publisher = cmd_vel_pub if cmd_vel_pub is not None else None
 
     st.sidebar.title("Configurações")
     
@@ -90,8 +90,9 @@ def main():
         col1, col2 = st.columns([4, 2], gap="large")
  
         with col1:
-            # Mostrar mapa gerado a partir de /map (OccupancyGrid). Se não houver mapa, exibe imagem de simulação como fallback.
+            # Mostrar mapa gerado a partir de /map (OccupancyGrid). Fallback para imagem de simulação.
             map_state = st.session_state.get('map_state', None)
+
             if map_state:
                 last_map = None
                 try:
@@ -121,24 +122,23 @@ def main():
                             # Ajuste de orientação se necessário (flip/transpose)
                             img_arr = np.flipud(img_arr)
 
-                            # Pillow irá inferir o modo; garantimos 'L' explicitamente para compatibilidade
+                            # Converte para imagem em escala de cinza e exibe (sem overlay)
                             pil_img = Image.fromarray(img_arr).convert('L')
-
-                            st.image(pil_img, caption="Mapa (/map)", width='stretch')
+                            st.image(pil_img, caption="Mapa (/map)", use_container_width=True)
                     except Exception as e:
                         st.write(f"Erro ao gerar imagem do mapa: {e}")
                 else:
                     # fallback: exibe imagem de simulação se mapa ainda não chegou
                     try:
                         image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
-                        st.image(str(image_path), width='stretch')
+                        st.image(str(image_path), use_container_width=True)
                     except Exception:
                         st.write("Mapa: nenhum dado recebido ainda")
             else:
                 # se map_state não inicializado, mostra a imagem de simulação ou mensagem
                 try:
                     image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
-                    st.image(str(image_path), width='stretch')
+                    st.image(str(image_path), use_container_width=True)
                 except Exception:
                     st.write("Mapa: não inicializado")
 
@@ -155,6 +155,42 @@ def main():
                 st.success("Online")
                 st.metric(label="Velocidade Linear (m/s)", value=f"{linear:.4f}")
                 st.metric(label="Velocidade Angular (rad/s)", value=f"{angular:.4f}")
+
+                # --- Exibe pose do robô (mesma coluna, sem interferir no mapa) ---
+                try:
+                    # compatibilidade: usa get_pose() se existir, senão tenta atributos comuns
+                    if hasattr(robot_state, 'get_pose') and callable(getattr(robot_state, 'get_pose')):
+                        pos, ori = robot_state.get_pose()
+                    else:
+                        # tenta vários nomes possíveis para posição/orientação
+                        if hasattr(robot_state, 'position'):
+                            pos = getattr(robot_state, 'position')
+                        elif hasattr(robot_state, 'pose'):
+                            pos = getattr(robot_state, 'pose')
+                            # pose pode ser dict com 'position'
+                            if isinstance(pos, dict) and 'position' in pos:
+                                pos = pos.get('position')
+                        elif hasattr(robot_state, 'get_position') and callable(getattr(robot_state, 'get_position')):
+                            pos = robot_state.get_position()
+                        else:
+                            pos = {'x': 0.0, 'y': 0.0, 'z': 0.0}
+
+                        if hasattr(robot_state, 'orientation'):
+                            ori = getattr(robot_state, 'orientation')
+                        elif hasattr(robot_state, 'get_orientation') and callable(getattr(robot_state, 'get_orientation')):
+                            ori = robot_state.get_orientation()
+                        elif isinstance(pos, dict) and 'orientation' in pos:
+                            ori = pos.get('orientation')
+                        else:
+                            ori = {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+
+                    # Em vez de converter/formatar, mostramos os valores brutos exatamente como recebidos
+                    st.markdown("**Pose (raw)**")
+                    # Exibe os dicionários com representação python (preserva notação científica)
+                    st.text(repr(pos))
+                    st.text(repr(ori))
+                except Exception as e:
+                    st.write("Erro ao obter pose:", e)
             else:
                 # Se OFFLINE, mostra os valores padrão
                 st.error("Offline")

@@ -75,7 +75,7 @@ def initialize_ros_connection(host=None, port=9090, timeout=5):
     Conecta ao rosbridge e cria publishers/subscribers.
     Retorna: (robot_state, map_state, client, cmd_vel_publisher)
     """
-    host = host or os.getenv('ROSBRIDGE_HOST', '192.168.1.12')
+    host = host or os.getenv('ROSBRIDGE_HOST', '192.168.1.11')
     port = int(os.getenv('ROSBRIDGE_PORT', port))
 
     client = roslibpy.Ros(host=host, port=port)

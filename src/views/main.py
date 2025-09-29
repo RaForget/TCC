@@ -14,7 +14,7 @@ from src.views.parametrizacao import show_parametrizacao
 from src.views.controles import show_controles
 
 # Configuração da página com sidebar inicial expandida
-st.set_page_config(page_title="Interface de Controle")
+st.set_page_config(page_title="Interface de Controle", layout="wide")
 
 def main():
 
@@ -86,8 +86,9 @@ def main():
     if menu == "Visualização":
         st.header("Visualização")
         
-        col1, col2 = st.columns(2)
-
+        # dá mais espaço para o mapa (ajuste a proporção se quiser)
+        col1, col2 = st.columns([4, 2], gap="large")
+ 
         with col1:
             # Mostrar mapa gerado a partir de /map (OccupancyGrid). Se não houver mapa, exibe imagem de simulação como fallback.
             map_state = st.session_state.get('map_state', None)
@@ -120,14 +121,8 @@ def main():
                             # Ajuste de orientação se necessário (flip/transpose)
                             img_arr = np.flipud(img_arr)
 
-                            pil_img = Image.fromarray(img_arr, mode='L')
-
-                            # Redimensiona se muito grande
-                            max_display_width = 600
-                            if pil_img.width > max_display_width:
-                                scale = max_display_width / pil_img.width
-                                new_size = (int(pil_img.width * scale), int(pil_img.height * scale))
-                                pil_img = pil_img.resize(new_size, Image.NEAREST)
+                            # Pillow irá inferir o modo; garantimos 'L' explicitamente para compatibilidade
+                            pil_img = Image.fromarray(img_arr).convert('L')
 
                             st.image(pil_img, caption="Mapa (/map)", width='stretch')
                     except Exception as e:

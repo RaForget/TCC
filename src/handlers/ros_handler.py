@@ -1,258 +1,229 @@
-import threading
-import os
-import roslibpy
 from dotenv import load_dotenv
-
-# Carrega variáveis de ambiente
 load_dotenv()
 
+import os
+import threading
+import time
+
+# roslibpy é usado para conectar ao rosbridge
+import roslibpy
 
 # ---------------- Toggle de POST ---------------------------------
-# Variável global que controla se a função de POST é executada
-# Padrão: desabilitado para evitar envios acidentais ao iniciar a interface
 POST_ENABLED = False
 
 def enable_post():
-    """Habilita envios de POST (publish) para o ROS."""
     global POST_ENABLED
     POST_ENABLED = True
-    print("POSTs habilitados.")
 
 def disable_post():
-    """Desabilita envios de POST (publish) para o ROS."""
     global POST_ENABLED
     POST_ENABLED = False
-    print("POSTs desabilitados.")
 
 def is_post_enabled():
-    """Retorna True se POSTs estiverem habilitados."""
     return POST_ENABLED
 
-# Classe para armazenar o estado do robô de forma segura entre as threads
+# ---------------- RobotState -------------------------------------
 class RobotState:
     def __init__(self):
         self.linear_velocity = 0.0
         self.angular_velocity = 0.0
-        # pose: position (x,y,z) e orientation (x,y,z,w)
         self.position = {'x': 0.0, 'y': 0.0, 'z': 0.0}
         self.orientation = {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
         self._lock = threading.Lock()
+        self.last_update = time.time()
 
     def update_velocity(self, linear, angular):
         with self._lock:
-            self.linear_velocity = linear
-            self.angular_velocity = angular
+            try:
+                self.linear_velocity = float(linear)
+            except Exception:
+                pass
+            try:
+                self.angular_velocity = float(angular)
+            except Exception:
+                pass
+            self.last_update = time.time()
 
     def get_velocity(self):
         with self._lock:
             return self.linear_velocity, self.angular_velocity
 
-    def update_pose(self, position_dict=None, orientation_dict=None, *, x=None, y=None, z=None, ox=None, oy=None, oz=None, ow=None):
-        """
-        Atualiza a pose. Aceita dicionários (position_dict, orientation_dict) ou valores individuais.
-        """
+    def update_pose(self, position_dict=None, orientation_dict=None):
         with self._lock:
-            if position_dict:
+            if position_dict and isinstance(position_dict, dict):
                 for k in ('x','y','z'):
                     if k in position_dict:
-                        self.position[k] = float(position_dict[k])
-            else:
-                if x is not None: self.position['x'] = float(x)
-                if y is not None: self.position['y'] = float(y)
-                if z is not None: self.position['z'] = float(z)
-
-            if orientation_dict:
+                        try:
+                            self.position[k] = float(position_dict[k])
+                        except Exception:
+                            pass
+            if orientation_dict and isinstance(orientation_dict, dict):
                 for k in ('x','y','z','w'):
                     if k in orientation_dict:
-                        self.orientation[k] = float(orientation_dict[k])
-            else:
-                if ox is not None: self.orientation['x'] = float(ox)
-                if oy is not None: self.orientation['y'] = float(oy)
-                if oz is not None: self.orientation['z'] = float(oz)
-                if ow is not None: self.orientation['w'] = float(ow)
+                        try:
+                            self.orientation[k] = float(orientation_dict[k])
+                        except Exception:
+                            pass
+            self.last_update = time.time()
 
     def get_pose(self):
         with self._lock:
             return dict(self.position), dict(self.orientation)
 
-
-# Estado do mapa (armazena a última mensagem recebida)
-class MapState:
-    def __init__(self):
-        self.last_map = None
-        self._lock = threading.Lock()
-
-    def update_map(self, map_msg):
-        with self._lock:
-            self.last_map = map_msg
-
-    def get_map(self):
-        with self._lock:
-            return self.last_map
-
-def cmd_vel_callback(message, robot_state):
+# ---------------- Callbacks --------------------------------------
+def tf_callback(message, robot_state):
+    """
+    Lê tf2_msgs/TFMessage com transform.transform.translation{ x,y,z } e
+    transform.transform.rotation{ x,y,z,w }.
+    Atualiza robot_state quando houver um transform entre 'map' e qualquer um dos
+    frames úteis ('base_link','base_footprint','base','odom').
+    Aceita tanto map->odom quanto map->base_link (ou a ordem inversa).
+    """
     try:
-        linear = message.get('linear', {}).get('x', 0.0)
-        angular = message.get('angular', {}).get('z', 0.0)
-        robot_state.update_velocity(linear, angular)
+        transforms = message.get('transforms') or message.get('transform') or []
+        if isinstance(transforms, dict):
+            transforms = [transforms]
+        for t in transforms:
+            header = t.get('header', {}) or {}
+            frame = header.get('frame_id') or header.get('frame') or t.get('frame_id') or t.get('frame')
+            child = t.get('child_frame_id') or t.get('child') or t.get('child_frame') or t.get('child_frame_id')
+
+            transform_obj = t.get('transform') or {}
+            translation = transform_obj.get('translation') or {}
+            rotation = transform_obj.get('rotation') or {}
+
+            # converte valores simples
+            try:
+                pos = {'x': float(translation.get('x', 0.0)),
+                       'y': float(translation.get('y', 0.0)),
+                       'z': float(translation.get('z', 0.0))}
+            except Exception:
+                pos = {k: translation.get(k, 0.0) for k in ('x','y','z')}
+            try:
+                ori = {'x': float(rotation.get('x', 0.0)),
+                       'y': float(rotation.get('y', 0.0)),
+                       'z': float(rotation.get('z', 0.0)),
+                       'w': float(rotation.get('w', 1.0))}
+            except Exception:
+                ori = {k: rotation.get(k, 0.0) for k in ('x','y','z','w')}
+
+            # frames que consideramos relevantes para mostrar a pose
+            useful_children = ('base_link','base_footprint','base','odom')
+
+            # Se houver transform entre map <-> (base_link|odom|...), atualiza pose
+            if (frame in ('map','/map','world') and child in useful_children) or \
+               (child in ('map','/map','world') and frame in useful_children):
+                robot_state.update_pose(position_dict=pos, orientation_dict=ori)
+                return
+
+            # Fallback: odom <-> base_link também pode representar pose útil
+            if (frame in ('odom','/odom') and child in ('base_link','base_footprint','base')) or \
+               (child in ('odom','/odom') and frame in ('base_link','base_footprint','base')):
+                robot_state.update_pose(position_dict=pos, orientation_dict=ori)
+                return
     except Exception:
         pass
 
-def map_callback(message, map_state):
-    # Recebe nav_msgs/OccupancyGrid (ou outro formato) e guarda a mensagem raw
-    map_state.update_map(message)
-
-def pose_callback(message, robot_state):
+def odom_callback(message, robot_state):
     """
-    Extrai position e orientation de mensagens no formato:
-    - geometry_msgs/Pose: {'position':{...}, 'orientation':{...}}
-    - geometry_msgs/PoseStamped: {'pose': {'pose': {...}}}
-    - ou uma forma direta {'position': {...}, 'orientation': {...}}
+    Trata nav_msgs/Odometry (se disponível) como fallback.
     """
     try:
-        pos = None
-        ori = None
-
-        # PoseStamped?
-        if 'pose' in message and isinstance(message['pose'], dict):
-            inner = message['pose']
-            # pode ser PoseStamped (pose -> pose) ou Pose (pose)
-            if 'pose' in inner and isinstance(inner['pose'], dict):
-                payload = inner['pose']
-                pos = payload.get('position')
-                ori = payload.get('orientation')
-            else:
-                # message['pose'] já contém position/orientation
-                pos = inner.get('position')
-                ori = inner.get('orientation')
-        else:
-            # Mensagem direta
-            pos = message.get('position') or message.get('pos') or None
-            ori = message.get('orientation') or message.get('orient') or None
-
-        # Se ainda None, tenta extrair campos diretamente
-        if pos is None and any(k in message for k in ('x','y','z')):
-            pos = {k: message.get(k) for k in ('x','y','z')}
-
-        if pos:
-            robot_state.update_pose(position_dict=pos)
-        if ori:
-            robot_state.update_pose(orientation_dict=ori)
+        pose = None
+        if isinstance(message.get('pose'), dict) and 'pose' in message['pose']:
+            pose = message['pose']['pose']
+        elif isinstance(message.get('pose'), dict):
+            pose = message.get('pose')
+        elif isinstance(message.get('msg'), dict) and isinstance(message['msg'].get('pose'), dict):
+            pose = message['msg']['pose'].get('pose') or message['msg']['pose']
+        if pose and isinstance(pose, dict):
+            pos = pose.get('position', {}) or {}
+            ori = pose.get('orientation', {}) or {}
+            robot_state.update_pose(position_dict=pos, orientation_dict=ori)
     except Exception:
         pass
 
-# nova callback para PoseArray
-def posearray_callback(message, robot_state):
-    """
-    Trata geometry_msgs/PoseArray: {'poses': [ {position:{}, orientation:{}}, ... ]}
-    Pega a primeira pose (ou altere para escolher outra) e atualiza robot_state.
-    """
-    try:
-        poses = message.get('poses') or []
-        if not poses:
-            return
-        first = poses[0]
-        pos = first.get('position')
-        ori = first.get('orientation')
-        if pos:
-            robot_state.update_pose(position_dict=pos)
-        if ori:
-            robot_state.update_pose(orientation_dict=ori)
-    except Exception:
-        pass
-
+# ---------------- Initialization / Subscriptions ------------------
 def initialize_ros_connection(host=None, port=9090, timeout=5):
     """
-    Conecta ao rosbridge e cria publishers/subscribers.
-    Retorna: (robot_state, map_state, client, cmd_vel_publisher)
+    Conecta ao rosbridge (roslibpy) e subscreve /tf, /tf_static e /odom.
+    Retorna: (robot_state, map_state, client, cmd_vel_pub)
     """
-    host = host or os.getenv('ROSBRIDGE_HOST', '192.168.1.11')
-    port = int(os.getenv('ROSBRIDGE_PORT', port))
-
+    host = host or os.getenv('ROSBRIDGE_HOST', 'localhost')
+    port = int(port or os.getenv('ROSBRIDGE_PORT', 9090))
     client = roslibpy.Ros(host=host, port=port)
-    client.run(timeout=timeout)
+    client.run()
+
+    # aguarda conexão até timeout
+    start = time.time()
+    while not getattr(client, 'is_connected', False) and (time.time() - start) < float(timeout):
+        time.sleep(0.02)
+
+    if not getattr(client, 'is_connected', False):
+        return None, None, client, None
 
     robot_state = RobotState()
-    map_state = MapState()
+    map_state = None
+    cmd_vel_pub = None
 
-    if client.is_connected:
-        # Publisher (se você precisar enviar comandos)
-        cmd_vel_pub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+    # manter referências aos tópicos/subs para evitar garbage-collection
+    _subs = []
 
-        # Subscribers
-        cmd_vel_sub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
-        cmd_vel_sub.subscribe(lambda msg: cmd_vel_callback(msg, robot_state))
-
-        # Assumimos que /map é nav_msgs/OccupancyGrid; ajuste se for outro tipo
-        map_sub = roslibpy.Topic(client, '/map', 'nav_msgs/OccupancyGrid')
-        map_sub.subscribe(lambda msg: map_callback(msg, map_state))
-
-        # Subscrição para /pose_info (tenta vários tipos)
-        try:
-            # Assina explicitamente PoseArray (este é o tipo correto no seu caso)
-            posearray_sub = roslibpy.Topic(client, '/pose_info', 'geometry_msgs/PoseArray')
-            posearray_sub.subscribe(lambda msg: posearray_callback(msg, robot_state))
-        except Exception:
-            pass
-
-        # mantém as tentativas anteriores (Pose / PoseStamped) também
-        try:
-            pose_sub = roslibpy.Topic(client, '/pose_info', 'geometry_msgs/Pose')
-            pose_sub.subscribe(lambda msg: pose_callback(msg, robot_state))
-        except Exception:
-            try:
-                pose_sub = roslibpy.Topic(client, '/pose_info', 'geometry_msgs/PoseStamped')
-                pose_sub.subscribe(lambda msg: pose_callback(msg, robot_state))
-            except Exception:
-                pass
-
-        return robot_state, map_state, client, cmd_vel_pub
-    else:
-        # falha na conexão
-        return None, None, None, None
-
-def send_velocity_command(publisher, linear_x=0.0, angular_z=0.0):
-    """
-    Cria e publica uma mensagem Twist no tópico /cmd_vel.
-    Esta função centraliza a lógica de envio de comandos.
-    """
-    # Verifica se envio de POSTs está habilitado
+    # subscrição /tf
     try:
-        if not is_post_enabled():
-            print("POSTs desabilitados — comando não será enviado.")
-            return
-    except NameError:
-        # Caso as funções de toggle não existam por algum motivo, continua o comportamento padrão
+        tf_sub = roslibpy.Topic(client, '/tf', 'tf2_msgs/TFMessage')
+        tf_sub.subscribe(lambda msg: tf_callback(msg, robot_state))
+        _subs.append(tf_sub)
+    except Exception:
         pass
 
-    if not publisher:
-        print("Aviso: Tentativa de publicar sem um publicador inicializado.")
-        return
-    
-    # Cria a mensagem no formato que o ROS espera
-    twist = roslibpy.Message({
-        'linear': {
-            'x': linear_x,
-            'y': 0.0,
-            'z': 0.0
-        },
-        'angular': {
-            'x': 0.0,
-            'y': 0.0,
-            'z': angular_z
-        }
-    })
-    
-    # Publica a mensagem
-    publisher.publish(twist)
+    # subscrição /tf_static
+    try:
+        tf_static = roslibpy.Topic(client, '/tf_static', 'tf2_msgs/TFMessage')
+        tf_static.subscribe(lambda msg: tf_callback(msg, robot_state))
+        _subs.append(tf_static)
+    except Exception:
+        pass
 
-__all__ = [
-    'RobotState',
-    'MapState',
-    'initialize_ros_connection',
-    'send_velocity_command',
-    'enable_post',
-    'disable_post',
-    'is_post_enabled'
-]
+    # subscrição /odom (fallback)
+    try:
+        odom_sub = roslibpy.Topic(client, '/odom', 'nav_msgs/Odometry')
+        odom_sub.subscribe(lambda msg: odom_callback(msg, robot_state))
+        _subs.append(odom_sub)
+    except Exception:
+        pass
+
+    # Publisher /cmd_vel (opcional, manter referência)
+    try:
+        cmd_vel_pub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+        _subs.append(cmd_vel_pub)
+    except Exception:
+        cmd_vel_pub = None
+
+    # guarda referências no robot_state para que as subscrições não sejam coletadas
+    try:
+        setattr(robot_state, '_ros_topics', _subs)
+    except Exception:
+        # se por algum motivo não for possível, apenas ignore
+        pass
+
+    return robot_state, map_state, client, cmd_vel_pub
+
+# ---------------- Publisher helper (stub) -------------------------
+def send_velocity_command(linear, angular, cmd_vel_pub=None):
+    """
+    Publica geometry_msgs/Twist via cmd_vel_pub (roslibpy.Topic).
+    Se cmd_vel_pub for None, não faz nada e retorna False.
+    """
+    try:
+        if cmd_vel_pub is None:
+            return False
+        msg = {
+            'linear': {'x': float(linear), 'y': 0.0, 'z': 0.0},
+            'angular': {'x': 0.0, 'y': 0.0, 'z': float(angular)}
+        }
+        cmd_vel_pub.publish(roslibpy.Message(msg))
+        return True
+    except Exception:
+        return False
 

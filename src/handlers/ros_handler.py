@@ -4,6 +4,7 @@ load_dotenv()
 import os
 import threading
 import time
+import json
 
 # roslibpy é usado para conectar ao rosbridge
 import roslibpy
@@ -143,6 +144,41 @@ def odom_callback(message, robot_state):
     except Exception:
         pass
 
+# ---------------- MapState -------------------------------------
+class MapState:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.last_map = None
+        self.last_update = 0.0
+
+    def update_map(self, msg):
+        """
+        Espera estrutura de OccupancyGrid via rosbridge:
+        message -> {'data': [...], 'info': {'width':N, 'height':M, 'resolution':r, 'origin': {'position':{'x':..,'y':..}}}}
+        tolerante a variações no encapsulamento.
+        """
+        try:
+            # normalize message shape
+            if isinstance(msg, dict) and 'msg' in msg and isinstance(msg['msg'], dict):
+                payload = msg['msg']
+            else:
+                payload = msg
+            data = payload.get('data') or payload.get('map') or payload.get('occupancy') or []
+            info = payload.get('info') or payload.get('map', {}).get('info') or payload.get('meta') or {}
+            # try to coerce to basic dict
+            info_simple = {}
+            if isinstance(info, dict):
+                info_simple = info
+            with self._lock:
+                self.last_map = {'data': data, 'info': info_simple}
+                self.last_update = time.time()
+        except Exception:
+            pass
+
+    def get_map(self):
+        with self._lock:
+            return dict(self.last_map) if self.last_map is not None else None
+
 # ---------------- Initialization / Subscriptions ------------------
 def initialize_ros_connection(host=None, port=9090, timeout=5):
     """
@@ -163,10 +199,9 @@ def initialize_ros_connection(host=None, port=9090, timeout=5):
         return None, None, client, None
 
     robot_state = RobotState()
-    map_state = None
+    map_state = MapState()
     cmd_vel_pub = None
 
-    # manter referências aos tópicos/subs para evitar garbage-collection
     _subs = []
 
     # subscrição /tf

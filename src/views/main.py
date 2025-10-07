@@ -28,10 +28,11 @@ def main():
     is_post_enabled = getattr(ros_handler, 'is_post_enabled', lambda: False)
 
     # permite definir host/port do rosbridge pela UI (igual ao teste)
+    # substitua o bloco de inicialização/armazenamento na sessão pela versão abaixo
+    import os
     host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.11'))
     port = int(st.sidebar.number_input("ROSBridge port", value=int(os.getenv('ROSBRIDGE_PORT', '9090')), min_value=1, max_value=65535))
 
-    # tenta conectar apenas se não houver cliente ou ele não estiver conectado
     if 'ros_client' not in st.session_state or not getattr(st.session_state.get('ros_client'), 'is_connected', False):
         with st.spinner(f'Conectando ao rosbridge {host}:{port}...'):
             try:
@@ -49,10 +50,12 @@ def main():
             st.session_state.ros_client = ros_client
             st.session_state.cmd_vel_publisher = cmd_vel_pub
     else:
-        # usa os objetos já guardados na sessão
         robot_state = st.session_state.get('robot_state', None)
         ros_client = st.session_state.get('ros_client', None)
         map_state = st.session_state.get('map_state', None)
+        # garantir que o publisher também esteja disponível na sessão
+        if 'cmd_vel_publisher' not in st.session_state:
+            st.session_state.cmd_vel_publisher = None
 
     st.sidebar.title("Configurações")
     

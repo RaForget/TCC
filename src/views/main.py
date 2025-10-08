@@ -105,57 +105,54 @@ def main():
         col1, col2 = st.columns([4, 2], gap="large")
  
         with col1:
-            # Mostrar mapa gerado a partir de /map (OccupancyGrid). Fallback para imagem de simulação.
-            map_state = st.session_state.get('map_state', None)
-
+            # Obtém estado do mapa da sessão
+            map_state = st.session_state.get('map_state')
+            
             if map_state:
-                last_map = None
                 try:
                     last_map = map_state.get_map()
-                except Exception:
-                    last_map = None
+                    last_update = getattr(map_state, 'last_update', None)
+                    
+                    if last_map and isinstance(last_map, dict) and 'data' in last_map and 'info' in last_map:
+                        try:
+                            import numpy as np
+                            from PIL import Image
 
-                if last_map and isinstance(last_map, dict) and 'data' in last_map and 'info' in last_map:
-                    try:
-                        import numpy as np
-                        from PIL import Image
+                            info = last_map.get('info', {})
+                            width = int(info.get('width', 0))
+                            height = int(info.get('height', 0))
 
-                        info = last_map.get('info', {})
-                        width = int(info.get('width', 0))
-                        height = int(info.get('height', 0))
-
-                        data = np.array(last_map['data'], dtype=np.int16)
-                        if data.size != width * height:
-                            st.write("Dados do mapa com tamanho inesperado")
-                        else:
-                            # Mapear valores de ocupação para tons de cinza:
-                            # -1 (unknown) -> 127, 0 (free) -> 255 (branco), 100 (occupied) -> 0 (preto)
-                            img_arr = np.where(data == -1, 127,
+                            data = np.array(last_map['data'], dtype=np.int16)
+                            if data.size == width * height:
+                                # Converte dados de ocupação para imagem em escala de cinza
+                                img_arr = np.where(data == -1, 127,
                                                np.where(data == 0, 255, 0)).astype(np.uint8)
-                            img_arr = img_arr.reshape((height, width))
-
-                            # Ajuste de orientação se necessário (flip/transpose)
-                            img_arr = np.flipud(img_arr)
-
-                            # Converte para imagem em escala de cinza e exibe (sem overlay)
-                            pil_img = Image.fromarray(img_arr).convert('L')
-                            st.image(pil_img, caption="Mapa (/map)", width='stretch')
-                    except Exception as e:
-                        st.write(f"Erro ao gerar imagem do mapa: {e}")
-                else:
-                    # fallback: exibe imagem de simulação se mapa ainda não chegou
-                    try:
+                                img_arr = img_arr.reshape((height, width))
+                                img_arr = np.flipud(img_arr)
+                                
+                                # Converte para PIL e exibe
+                                pil_img = Image.fromarray(img_arr).convert('L')
+                                st.image(pil_img, caption="Mapa (/map)", width='stretch')
+                                
+                                # Mostra idade da última atualização
+                                if last_update:
+                                    age = time.time() - last_update
+                                    st.caption(f"Última atualização: {age:.1f}s atrás")
+                            else:
+                                st.warning("Tamanho dos dados do mapa inconsistente")
+                        except Exception as e:
+                            st.error(f"Erro ao processar mapa: {e}")
+                    else:
+                        # Mostra imagem de fallback
                         image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
-                        st.image(str(image_path), width='stretch')
-                    except Exception:
-                        st.write("Mapa: nenhum dado recebido ainda")
+                        if image_path.exists():
+                            st.image(str(image_path), width='stretch')
+                        else:
+                            st.warning("Nenhum dado do mapa recebido ainda")
+                except Exception as e:
+                    st.error(f"Erro ao acessar mapa: {e}")
             else:
-                # se map_state não inicializado, mostra a imagem de simulação ou mensagem
-                try:
-                    image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
-                    st.image(str(image_path), width='stretch')
-                except Exception:
-                    st.write("Mapa: não inicializado")
+                st.warning("Estado do mapa não inicializado")
 
         with col2:
 

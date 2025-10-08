@@ -211,7 +211,7 @@ class MapState:
 # ---------------- Initialization / Subscriptions ------------------
 def initialize_ros_connection(host=None, port=9090, timeout=5):
     """
-    Conecta ao rosbridge (roslibpy) e subscreve /tf, /tf_static e /odom.
+    Inicializa conexão ROS e subscreve em todos os tópicos necessários.
     Retorna: (robot_state, map_state, client, cmd_vel_pub)
     """
     host = host or os.getenv('ROSBRIDGE_HOST', 'localhost')
@@ -227,54 +227,46 @@ def initialize_ros_connection(host=None, port=9090, timeout=5):
     if not getattr(client, 'is_connected', False):
         return None, None, client, None
 
+    # Inicializa estados e lista de tópicos
     robot_state = RobotState()
     map_state = MapState()
-    cmd_vel_pub = None
+    _subs = []  # guarda referências para evitar garbage collection
 
-    _subs = []
-
-    # subscrição /tf
+    # 1. Subscrição ao /tf para atualizações de posição
     try:
         tf_sub = roslibpy.Topic(client, '/tf', 'tf2_msgs/TFMessage')
         tf_sub.subscribe(lambda msg: tf_callback(msg, robot_state))
         _subs.append(tf_sub)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Erro ao subscrever /tf: {e}")
 
-    # subscrição /tf_static
-    try:
-        tf_static = roslibpy.Topic(client, '/tf_static', 'tf2_msgs/TFMessage')
-        tf_static.subscribe(lambda msg: tf_callback(msg, robot_state))
-        _subs.append(tf_static)
-    except Exception:
-        pass
-
-    # subscrição /odom (fallback)
-    try:
-        odom_sub = roslibpy.Topic(client, '/odom', 'nav_msgs/Odometry')
-        odom_sub.subscribe(lambda msg: odom_callback(msg, robot_state))
-        _subs.append(odom_sub)
-    except Exception:
-        pass
-
-    # subscrição /cmd_vel (para processar comandos recebidos)
+    # 2. Subscrição ao /cmd_vel para velocidades
     try:
         cmd_vel_sub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
         cmd_vel_sub.subscribe(lambda msg: cmd_vel_callback(msg, robot_state))
-        _subs.append(cmd_vel_sub)  # mantém referência
-    except Exception:
-        pass
+        _subs.append(cmd_vel_sub)
+    except Exception as e:
+        print(f"Erro ao subscrever /cmd_vel: {e}")
 
-    # Publisher /cmd_vel (manter referência para publicar comandos)
+    # 3. Subscrição ao /map para atualizações do mapa
+    try:
+        map_sub = roslibpy.Topic(client, '/map', 'nav_msgs/OccupancyGrid')
+        map_sub.subscribe(lambda msg: map_state.update_map(msg))
+        _subs.append(map_sub)
+    except Exception as e:
+        print(f"Erro ao subscrever /map: {e}")
+
+    # Cria publisher para /cmd_vel
     try:
         cmd_vel_pub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
         _subs.append(cmd_vel_pub)
     except Exception:
         cmd_vel_pub = None
 
-    # guarda referências no robot_state
+    # Guarda referências em ambos os estados
     try:
         setattr(robot_state, '_ros_topics', _subs)
+        setattr(map_state, '_ros_topics', _subs)
     except Exception:
         pass
 

@@ -144,6 +144,35 @@ def odom_callback(message, robot_state):
     except Exception:
         pass
 
+def cmd_vel_callback(message, robot_state):
+    """
+    Processa mensagens do tópico /cmd_vel (geometry_msgs/Twist).
+    Atualiza velocidades no RobotState de forma thread-safe.
+    """
+    try:
+        # extrai mensagem do wrapper do rosbridge se necessário
+        msg = message.get('msg', message) if isinstance(message, dict) else message
+        
+        # obtém campos linear/angular
+        linear_msg = msg.get('linear', {})
+        angular_msg = msg.get('angular', {})
+        
+        # extrai velocidades (x linear, z angular)
+        try:
+            linear = float(linear_msg.get('x', 0.0))
+        except (ValueError, TypeError):
+            linear = 0.0
+            
+        try:
+            angular = float(angular_msg.get('z', 0.0))
+        except (ValueError, TypeError):
+            angular = 0.0
+            
+        # atualiza estado do robô thread-safe
+        robot_state.update_velocity(linear, angular)
+    except Exception:
+        pass
+
 # ---------------- MapState -------------------------------------
 class MapState:
     def __init__(self):
@@ -228,18 +257,25 @@ def initialize_ros_connection(host=None, port=9090, timeout=5):
     except Exception:
         pass
 
-    # Publisher /cmd_vel (opcional, manter referência)
+    # subscrição /cmd_vel (para processar comandos recebidos)
+    try:
+        cmd_vel_sub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+        cmd_vel_sub.subscribe(lambda msg: cmd_vel_callback(msg, robot_state))
+        _subs.append(cmd_vel_sub)  # mantém referência
+    except Exception:
+        pass
+
+    # Publisher /cmd_vel (manter referência para publicar comandos)
     try:
         cmd_vel_pub = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
         _subs.append(cmd_vel_pub)
     except Exception:
         cmd_vel_pub = None
 
-    # guarda referências no robot_state para que as subscrições não sejam coletadas
+    # guarda referências no robot_state
     try:
         setattr(robot_state, '_ros_topics', _subs)
     except Exception:
-        # se por algum motivo não for possível, apenas ignore
         pass
 
     return robot_state, map_state, client, cmd_vel_pub

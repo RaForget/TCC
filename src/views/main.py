@@ -170,34 +170,36 @@ def main():
 
                 # --- Exibe pose do robô (mesma coluna, sem interferir no mapa) ---
                 try:
-                    # obtém pose compatível com diferentes RobotState
+                    # obtém pose do estado
                     if hasattr(robot_state, 'get_pose') and callable(getattr(robot_state, 'get_pose')):
                         pos, ori = robot_state.get_pose()
                     else:
-                        pos = getattr(robot_state, 'position', {'x':0.0,'y':0.0,'z':0.0})
-                        ori = getattr(robot_state, 'orientation', {'x':0.0,'y':0.0,'z':0.0,'w':1.0})
+                        pos = getattr(robot_state, 'position', {'x': 0.0, 'y': 0.0, 'z': 0.0})
+                        ori = getattr(robot_state, 'orientation', {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0})
 
-                    # garante dicionários com floats (mas preserva representação via repr ao exibir)
-                    def _f(d, k, default=0.0):
+                    def _fv(d, k, default=0.0):
                         try:
                             return float(d.get(k, default)) if isinstance(d, dict) else default
                         except Exception:
                             return default
 
-                    px = _f(pos, 'x')
-                    py = _f(pos, 'y')
-                    pz = _f(pos, 'z')
-                    ox = _f(ori, 'x')
-                    oy = _f(ori, 'y')
-                    oz = _f(ori, 'z')
-                    ow = _f(ori, 'w', 1.0)
+                    # valores numéricos (como float) e exibição com repr para preservar notação
+                    px = _fv(pos, 'x'); py = _fv(pos, 'y'); pz = _fv(pos, 'z')
+                    ox = _fv(ori, 'x'); oy = _fv(ori, 'y'); oz = _fv(ori, 'z'); ow = _fv(ori, 'w', 1.0)
 
-                    # Exibe apenas translation e rotation (mínimo e limpo)
-                    st.markdown("**Pose (map frame)**")
-                    st.text(f"translation:  x: {repr(px)},  y: {repr(py)},  z: {repr(pz)}")
-                    st.text(f"rotation:     x: {repr(ox)},  y: {repr(oy)},  z: {repr(oz)},  w: {repr(ow)}")
+                    # Exibição em seções para caber o valor inteiro na tela
+                    st.markdown("**Translation**")
+                    st.text(f"X: {repr(px)}")
+                    st.text(f"Y: {repr(py)}")
+                    st.text(f"Z: {repr(pz)}")
+
+                    st.markdown("**Rotation**")
+                    st.text(f"x: {repr(ox)}")
+                    st.text(f"y: {repr(oy)}")
+                    st.text(f"z: {repr(oz)}")
+                    st.text(f"w: {repr(ow)}")
                 except Exception as e:
-                    st.write("Erro ao obter pose:", e)
+                    st.write("Erro ao exibir pose:", e)
             else:
                 # Se OFFLINE, mostra os valores padrão
                 st.error("Offline")

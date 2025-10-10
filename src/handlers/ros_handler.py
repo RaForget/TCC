@@ -5,6 +5,7 @@ import os
 import threading
 import time
 import json
+import math, time
 
 # roslibpy é usado para conectar ao rosbridge
 import roslibpy
@@ -73,13 +74,6 @@ class RobotState:
 
 # ---------------- Callbacks --------------------------------------
 def tf_callback(message, robot_state):
-    """
-    Lê tf2_msgs/TFMessage com transform.transform.translation{ x,y,z } e
-    transform.transform.rotation{ x,y,z,w }.
-    Atualiza robot_state quando houver um transform entre 'map' e qualquer um dos
-    frames úteis ('base_link','base_footprint','base','odom').
-    Aceita tanto map->odom quanto map->base_link (ou a ordem inversa).
-    """
     try:
         transforms = message.get('transforms') or message.get('transform') or []
         if isinstance(transforms, dict):
@@ -88,40 +82,10 @@ def tf_callback(message, robot_state):
             header = t.get('header', {}) or {}
             frame = header.get('frame_id') or header.get('frame') or t.get('frame_id') or t.get('frame')
             child = t.get('child_frame_id') or t.get('child') or t.get('child_frame') or t.get('child_frame_id')
-
             transform_obj = t.get('transform') or {}
             translation = transform_obj.get('translation') or {}
             rotation = transform_obj.get('rotation') or {}
-
-            # converte valores simples
-            try:
-                pos = {'x': float(translation.get('x', 0.0)),
-                       'y': float(translation.get('y', 0.0)),
-                       'z': float(translation.get('z', 0.0))}
-            except Exception:
-                pos = {k: translation.get(k, 0.0) for k in ('x','y','z')}
-            try:
-                ori = {'x': float(rotation.get('x', 0.0)),
-                       'y': float(rotation.get('y', 0.0)),
-                       'z': float(rotation.get('z', 0.0)),
-                       'w': float(rotation.get('w', 1.0))}
-            except Exception:
-                ori = {k: rotation.get(k, 0.0) for k in ('x','y','z','w')}
-
-            # frames que consideramos relevantes para mostrar a pose
-            useful_children = ('base_link','base_footprint','base','odom')
-
-            # Se houver transform entre map <-> (base_link|odom|...), atualiza pose
-            if (frame in ('map','/map','world') and child in useful_children) or \
-               (child in ('map','/map','world') and frame in useful_children):
-                robot_state.update_pose(position_dict=pos, orientation_dict=ori)
-                return
-
-            # Fallback: odom <-> base_link também pode representar pose útil
-            if (frame in ('odom','/odom') and child in ('base_link','base_footprint','base')) or \
-               (child in ('odom','/odom') and frame in ('base_link','base_footprint','base')):
-                robot_state.update_pose(position_dict=pos, orientation_dict=ori)
-                return
+            _update_tf_and_pose(robot_state, frame, child, translation, rotation)
     except Exception:
         pass
 
@@ -289,4 +253,78 @@ def send_velocity_command(linear, angular, cmd_vel_pub=None):
         return True
     except Exception:
         return False
+
+def _norm_frame(name):
+    return str(name).lstrip('/') if name else ''
+
+def _quat_multiply(q1, q2):
+    x1,y1,z1,w1 = q1
+    x2,y2,z2,w2 = q2
+    return (
+        w1*x2 + x1*w2 + y1*z2 - z1*y2,
+        w1*y2 - x1*z2 + y1*w2 + z1*x2,
+        w1*z2 + x1*y2 - y1*x2 + z1*w2,
+        w1*w2 - x1*x2 - y1*y2 - z1*z2
+    )
+
+def _yaw_from_quat(q):
+    x,y,z,w = q
+    return math.atan2(2.0*(w*z + x*y), 1.0 - 2.0*(y*y + z*z))
+
+def _rotate_xy(x, y, yaw):
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    return (cy*x - sy*y, sy*x + cy*y)
+
+def _ensure_tf_store(robot_state):
+    if not hasattr(robot_state, '_tf_store'):
+        robot_state._tf_store = {}
+    return robot_state._tf_store
+
+def _update_tf_and_pose(robot_state, frame, child, translation, rotation):
+    tf_store = _ensure_tf_store(robot_state)
+    f = _norm_frame(frame)
+    c = _norm_frame(child)
+    trans = {
+        'x': float(translation.get('x', 0.0)),
+        'y': float(translation.get('y', 0.0)),
+        'z': float(translation.get('z', 0.0)),
+    }
+    rot = {
+        'x': float(rotation.get('x', 0.0)),
+        'y': float(rotation.get('y', 0.0)),
+        'z': float(rotation.get('z', 0.0)),
+        'w': float(rotation.get('w', 1.0)),
+    }
+    tf_store[(f, c)] = {'t': trans, 'r': rot, 'ts': time.time()}
+
+    def get(fr, ch):
+        return tf_store.get((_norm_frame(fr), _norm_frame(ch)))
+
+    # 1) direto: map->base_link
+    direct = get('map', 'base_link') or get('map', 'base_footprint') or get('world', 'base_link')
+    if direct:
+        robot_state.update_pose(position_dict=direct['t'], orientation_dict=direct['r'])
+        return
+
+    # 2) composição: map->odom + odom->base_link
+    t1 = get('map', 'odom') or get('world', 'odom')
+    t2 = get('odom', 'base_link') or get('odom', 'base_footprint') or get('odom', 'base')
+    if t1 and t2:
+        x1,y1,z1 = t1['t']['x'], t1['t']['y'], t1['t']['z']
+        x2,y2,z2 = t2['t']['x'], t2['t']['y'], t2['t']['z']
+        q1 = (t1['r']['x'], t1['r']['y'], t1['r']['z'], t1['r']['w'])
+        q2 = (t2['r']['x'], t2['r']['y'], t2['r']['z'], t2['r']['w'])
+        yaw1 = _yaw_from_quat(q1)
+        rx, ry = _rotate_xy(x2, y2, yaw1)
+        pos = {'x': x1 + rx, 'y': y1 + ry, 'z': z1 + z2}
+        q = _quat_multiply(q1, q2)
+        ori = {'x': q[0], 'y': q[1], 'z': q[2], 'w': q[3]}
+        robot_state.update_pose(position_dict=pos, orientation_dict=ori)
+        return
+
+    # 3) fallback: odom->base_link (pose no frame odom)
+    if t2:
+        robot_state.update_pose(position_dict=t2['t'], orientation_dict=t2['r'])
+
+# ...existing code...
 

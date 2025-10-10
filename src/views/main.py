@@ -132,8 +132,69 @@ def main():
                                 
                                 # Converte para PIL e exibe
                                 pil_img = Image.fromarray(img_arr).convert('L')
-                                st.image(pil_img, caption="Mapa (/map)", width='stretch')
+
+                                # --- Overlay: marcador da posição do robô ---
+                                try:
+                                    robot_state = st.session_state.get('robot_state', None)
+                                    if robot_state and hasattr(robot_state, 'get_pose'):
+                                        pos, ori = robot_state.get_pose()
+                                    else:
+                                        pos = getattr(robot_state, 'position', {'x': 0.0, 'y': 0.0, 'z': 0.0}) if robot_state else {'x':0.0,'y':0.0,'z':0.0}
+
+                                    # Parâmetros do mapa
+                                    resolution = float(info.get('resolution', 0.05))
+                                    origin = info.get('origin', {}) or {}
+                                    origin_pos = origin.get('position', origin) if isinstance(origin, dict) else {}
+                                    origin_ori = origin.get('orientation', {}) if isinstance(origin, dict) else {}
+                                    ox = float(origin_pos.get('x', 0.0))
+                                    oy = float(origin_pos.get('y', 0.0))
+                                    # Yaw do origin (se o mapa estiver rotacionado)
+                                    try:
+                                        ox_q = float(origin_ori.get('x', 0.0))
+                                        oy_q = float(origin_ori.get('y', 0.0))
+                                        oz_q = float(origin_ori.get('z', 0.0))
+                                        ow_q = float(origin_ori.get('w', 1.0))
+                                        import math
+                                        yaw0 = math.atan2(2.0*(ow_q*oz_q + ox_q*oy_q), 1.0 - 2.0*(oy_q*oy_q + oz_q*oz_q))
+                                    except Exception:
+                                        yaw0 = 0.0
+
+                                    # Posição do robô em metros (frame map, após composição no handler)
+                                    rx = float(pos.get('x', 0.0))
+                                    ry = float(pos.get('y', 0.0))
+
+                                    # Converte para sistema do mapa: traduz para a origem e remove rotação do origin
+                                    dx = rx - ox
+                                    dy = ry - oy
+                                    if abs(yaw0) > 1e-6:
+                                        cy, sy = math.cos(-yaw0), math.sin(-yaw0)
+                                        mx = cy*dx - sy*dy
+                                        my = sy*dx + cy*dy
+                                    else:
+                                        mx, my = dx, dy
+
+                                    # Metros -> pixels
+                                    px = int(mx / resolution)
+                                    py = int(my / resolution)
+
+                                    # Ajuste por flip vertical feito em img_arr (flipud)
+                                    py_disp = (height - 1) - py
+
+                                    if 0 <= px < width and 0 <= py_disp < height:
+                                        from PIL import ImageDraw
+                                        pil_rgb = pil_img.convert('RGB')
+                                        draw = ImageDraw.Draw(pil_rgb)
+                                        r = 5
+                                        draw.ellipse([(px - r, py_disp - r), (px + r, py_disp + r)], fill=(255, 0, 0))
+                                        pil_to_show = pil_rgb
+                                    else:
+                                        pil_to_show = pil_img
+                                except Exception:
+                                    pil_to_show = pil_img
+
+                                st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
                                 
+
                                 # Mostra idade da última atualização
                                 if last_update:
                                     age = time.time() - last_update

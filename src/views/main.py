@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 import time
 import os
+import math
 
 # Adiciona o diretório raiz ao PYTHONPATH
 root_dir = str(Path(__file__).parent.parent.parent)
@@ -30,7 +31,7 @@ def main():
     # permite definir host/port do rosbridge pela UI (igual ao teste)
     # substitua o bloco de inicialização/armazenamento na sessão pela versão abaixo
     import os
-    host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.11'))
+    host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.12'))
     port = int(st.sidebar.number_input("ROSBridge port", value=int(os.getenv('ROSBRIDGE_PORT', '9090')), min_value=1, max_value=65535))
 
     if 'ros_client' not in st.session_state or not getattr(st.session_state.get('ros_client'), 'is_connected', False):
@@ -133,13 +134,14 @@ def main():
                                 # Converte para PIL e exibe
                                 pil_img = Image.fromarray(img_arr).convert('L')
 
-                                # --- Overlay: marcador da posição do robô ---
+                                # --- Overlay: seta da posição e orientação do robô ---
                                 try:
                                     robot_state = st.session_state.get('robot_state', None)
                                     if robot_state and hasattr(robot_state, 'get_pose'):
                                         pos, ori = robot_state.get_pose()
                                     else:
                                         pos = getattr(robot_state, 'position', {'x': 0.0, 'y': 0.0, 'z': 0.0}) if robot_state else {'x':0.0,'y':0.0,'z':0.0}
+                                        ori = getattr(robot_state, 'orientation', {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}) if robot_state else {'x':0.0,'y':0.0,'z':0.0,'w':1.0}
 
                                     # Parâmetros do mapa
                                     resolution = float(info.get('resolution', 0.05))
@@ -148,22 +150,26 @@ def main():
                                     origin_ori = origin.get('orientation', {}) if isinstance(origin, dict) else {}
                                     ox = float(origin_pos.get('x', 0.0))
                                     oy = float(origin_pos.get('y', 0.0))
-                                    # Yaw do origin (se o mapa estiver rotacionado)
+
+                                    # Yaw do origin (rotação do mapa)
                                     try:
                                         ox_q = float(origin_ori.get('x', 0.0))
                                         oy_q = float(origin_ori.get('y', 0.0))
                                         oz_q = float(origin_ori.get('z', 0.0))
                                         ow_q = float(origin_ori.get('w', 1.0))
-                                        import math
                                         yaw0 = math.atan2(2.0*(ow_q*oz_q + ox_q*oy_q), 1.0 - 2.0*(oy_q*oy_q + oz_q*oz_q))
                                     except Exception:
                                         yaw0 = 0.0
 
-                                    # Posição do robô em metros (frame map, após composição no handler)
+                                    # Pose (map frame)
                                     rx = float(pos.get('x', 0.0))
                                     ry = float(pos.get('y', 0.0))
+                                    qx = float(ori.get('x', 0.0))
+                                    qy = float(ori.get('y', 0.0))
+                                    qz = float(ori.get('z', 0.0))
+                                    qw = float(ori.get('w', 1.0))
 
-                                    # Converte para sistema do mapa: traduz para a origem e remove rotação do origin
+                                    # Translada para a origem e remove rotação do origin
                                     dx = rx - ox
                                     dy = ry - oy
                                     if abs(yaw0) > 1e-6:
@@ -173,22 +179,64 @@ def main():
                                     else:
                                         mx, my = dx, dy
 
-                                    # Metros -> pixels
-                                    px = int(mx / resolution)
-                                    py = int(my / resolution)
+                                    # Metros -> pixels (antes do flip)
+                                    px = int(round(mx / resolution))
+                                    py = int(round(my / resolution))
 
-                                    # Ajuste por flip vertical feito em img_arr (flipud)
-                                    py_disp = (height - 1) - py
+                                    # Yaw do robô e ajuste pelo yaw do origin
+                                    try:
+                                        yaw_robot = math.atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz))
+                                    except Exception:
+                                        yaw_robot = 0.0
+                                    yaw_disp = yaw_robot - yaw0
+                                    if yaw_disp > math.pi: yaw_disp -= 2.0*math.pi
+                                    if yaw_disp < -math.pi: yaw_disp += 2.0*math.pi
 
-                                    if 0 <= px < width and 0 <= py_disp < height:
-                                        from PIL import ImageDraw
-                                        pil_rgb = pil_img.convert('RGB')
-                                        draw = ImageDraw.Draw(pil_rgb)
-                                        r = 5
-                                        draw.ellipse([(px - r, py_disp - r), (px + r, py_disp + r)], fill=(255, 0, 0))
-                                        pil_to_show = pil_rgb
-                                    else:
-                                        pil_to_show = pil_img
+                                    # --- Desenha seta estilo RViz (triângulo com borda preta) ---
+                                    # Comprimento em metros -> pixels; base proporcional
+                                    L_pix = max(16, int(round(0.5 / max(resolution, 1e-6))))   # ~0.5 m
+                                    base_w = max(12, int(round(L_pix * 0.65)))                  # largura da base (~65% do comprimento)
+                                    back_off = int(round(L_pix * 0.35))                         # recuo da base em relação ao centro
+
+                                    c = math.cos(yaw_disp)
+                                    s = math.sin(yaw_disp)
+
+                                    # Vértices no sistema do mapa (antes do flip vertical):
+                                    # - ápice aponta para frente
+                                    ax = px + int(round(L_pix * c))
+                                    ay = py + int(round(L_pix * s))
+                                    # - centro da base recuado
+                                    bx = px - int(round(back_off * c))
+                                    by = py - int(round(back_off * s))
+                                    # - cantos da base (offset perpendicular)
+                                    half_w = base_w // 2
+                                    # vetor perpendicular (−s, c)
+                                    lx = bx + int(round(half_w * (-s)))
+                                    ly = by + int(round(half_w * ( c)))
+                                    rx_ = bx - int(round(half_w * (-s)))
+                                    ry_ = by - int(round(half_w * ( c)))
+
+                                    # Converte Y para o sistema da imagem (flipud aplicado em img_arr)
+                                    def disp_y(y_pix): return (height - 1) - y_pix
+                                    p_apex = (ax,  disp_y(ay))
+                                    p_left = (lx,  disp_y(ly))
+                                    p_right= (rx_, disp_y(ry_))
+
+                                    # Desenho: preenche triângulo laranja e contorna em preto (largura 3-4 px)
+                                    from PIL import ImageDraw
+                                    pil_rgb = pil_img.convert('RGB')
+                                    draw = ImageDraw.Draw(pil_rgb)
+
+                                    fill_color = (95, 220, 95)   # laranja
+                                    edge_color = (0, 0, 0)        # preto
+                                    tri = [p_apex, p_right, p_left]
+
+                                    # Preenche
+                                    draw.polygon(tri, fill=fill_color)
+                                    # Contorno grosso (fecha o polígono)
+                                    draw.line(tri + [tri[0]], fill=edge_color, width=2)
+
+                                    pil_to_show = pil_rgb
                                 except Exception:
                                     pil_to_show = pil_img
 

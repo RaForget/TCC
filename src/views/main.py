@@ -18,6 +18,12 @@ from src.views.controles import show_controles
 # Configuração da página com sidebar inicial expandida
 st.set_page_config(page_title="Interface de Controle", layout="wide")
 
+# +++ NOVO: clique na imagem + desenho do ponto clicado
+try:
+    from streamlit_image_coordinates import streamlit_image_coordinates as get_img_click
+except Exception:
+    get_img_click = None
+
 def main():
 
     # Import dinâmico via importlib + getattr para evitar ImportError em import circular
@@ -31,7 +37,7 @@ def main():
     # permite definir host/port do rosbridge pela UI (igual ao teste)
     # substitua o bloco de inicialização/armazenamento na sessão pela versão abaixo
     import os
-    host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.12'))
+    host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.8'))
     port = int(st.sidebar.number_input("ROSBridge port", value=int(os.getenv('ROSBRIDGE_PORT', '9090')), min_value=1, max_value=65535))
 
     if 'ros_client' not in st.session_state or not getattr(st.session_state.get('ros_client'), 'is_connected', False):
@@ -101,149 +107,213 @@ def main():
 
     if menu == "Visualização":
         st.header("Visualização")
-        
-        # dá mais espaço para o mapa (ajuste a proporção se quiser)
         col1, col2 = st.columns([4, 2], gap="large")
- 
+
         with col1:
-            # Obtém estado do mapa da sessão
             map_state = st.session_state.get('map_state')
-            
+
+            # estado p/ waypoint temporário e modo seleção
+            if 'pending_goal' not in st.session_state:
+                st.session_state['pending_goal'] = None
+            if 'wp_select_mode' not in st.session_state:
+                st.session_state['wp_select_mode'] = True  # deixe ativo por padrão
+
+            # toggle simples para ativar/desativar seleção
+            st.session_state['wp_select_mode'] = st.toggle(
+                "Modo seleção de waypoint (clicar no mapa)",
+                value=st.session_state['wp_select_mode']
+            )
+
             if map_state:
                 try:
                     last_map = map_state.get_map()
                     last_update = getattr(map_state, 'last_update', None)
-                    
+
                     if last_map and isinstance(last_map, dict) and 'data' in last_map and 'info' in last_map:
                         try:
                             import numpy as np
-                            from PIL import Image
+                            from PIL import Image, ImageDraw
 
                             info = last_map.get('info', {})
                             width = int(info.get('width', 0))
                             height = int(info.get('height', 0))
+                            resolution = float(info.get('resolution', 0.05))
 
                             data = np.array(last_map['data'], dtype=np.int16)
                             if data.size == width * height:
-                                # Converte dados de ocupação para imagem em escala de cinza
-                                img_arr = np.where(data == -1, 127,
-                                               np.where(data == 0, 255, 0)).astype(np.uint8)
+                                img_arr = np.where(data == -1, 127, np.where(data == 0, 255, 0)).astype(np.uint8)
                                 img_arr = img_arr.reshape((height, width))
                                 img_arr = np.flipud(img_arr)
-                                
-                                # Converte para PIL e exibe
                                 pil_img = Image.fromarray(img_arr).convert('L')
 
-                                # --- Overlay: seta da posição e orientação do robô ---
+                                # pose do robô e parâmetros do origin
+                                robot_state = st.session_state.get('robot_state', None)
+                                if robot_state and hasattr(robot_state, 'get_pose'):
+                                    pos, ori = robot_state.get_pose()
+                                else:
+                                    pos = {'x': 0.0, 'y': 0.0, 'z': 0.0}
+                                    ori = {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+
+                                origin = info.get('origin', {}) or {}
+                                origin_pos = origin.get('position', origin) if isinstance(origin, dict) else {}
+                                origin_ori = origin.get('orientation', {}) if isinstance(origin, dict) else {}
+                                ox = float(origin_pos.get('x', 0.0))
+                                oy = float(origin_pos.get('y', 0.0))
+
                                 try:
-                                    robot_state = st.session_state.get('robot_state', None)
-                                    if robot_state and hasattr(robot_state, 'get_pose'):
-                                        pos, ori = robot_state.get_pose()
-                                    else:
-                                        pos = getattr(robot_state, 'position', {'x': 0.0, 'y': 0.0, 'z': 0.0}) if robot_state else {'x':0.0,'y':0.0,'z':0.0}
-                                        ori = getattr(robot_state, 'orientation', {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}) if robot_state else {'x':0.0,'y':0.0,'z':0.0,'w':1.0}
-
-                                    # Parâmetros do mapa
-                                    resolution = float(info.get('resolution', 0.05))
-                                    origin = info.get('origin', {}) or {}
-                                    origin_pos = origin.get('position', origin) if isinstance(origin, dict) else {}
-                                    origin_ori = origin.get('orientation', {}) if isinstance(origin, dict) else {}
-                                    ox = float(origin_pos.get('x', 0.0))
-                                    oy = float(origin_pos.get('y', 0.0))
-
-                                    # Yaw do origin (rotação do mapa)
-                                    try:
-                                        ox_q = float(origin_ori.get('x', 0.0))
-                                        oy_q = float(origin_ori.get('y', 0.0))
-                                        oz_q = float(origin_ori.get('z', 0.0))
-                                        ow_q = float(origin_ori.get('w', 1.0))
-                                        yaw0 = math.atan2(2.0*(ow_q*oz_q + ox_q*oy_q), 1.0 - 2.0*(oy_q*oy_q + oz_q*oz_q))
-                                    except Exception:
-                                        yaw0 = 0.0
-
-                                    # Pose (map frame)
-                                    rx = float(pos.get('x', 0.0))
-                                    ry = float(pos.get('y', 0.0))
-                                    qx = float(ori.get('x', 0.0))
-                                    qy = float(ori.get('y', 0.0))
-                                    qz = float(ori.get('z', 0.0))
-                                    qw = float(ori.get('w', 1.0))
-
-                                    # Translada para a origem e remove rotação do origin
-                                    dx = rx - ox
-                                    dy = ry - oy
-                                    if abs(yaw0) > 1e-6:
-                                        cy, sy = math.cos(-yaw0), math.sin(-yaw0)
-                                        mx = cy*dx - sy*dy
-                                        my = sy*dx + cy*dy
-                                    else:
-                                        mx, my = dx, dy
-
-                                    # Metros -> pixels (antes do flip)
-                                    px = int(round(mx / resolution))
-                                    py = int(round(my / resolution))
-
-                                    # Yaw do robô e ajuste pelo yaw do origin
-                                    try:
-                                        yaw_robot = math.atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz))
-                                    except Exception:
-                                        yaw_robot = 0.0
-                                    yaw_disp = yaw_robot - yaw0
-                                    if yaw_disp > math.pi: yaw_disp -= 2.0*math.pi
-                                    if yaw_disp < -math.pi: yaw_disp += 2.0*math.pi
-
-                                    # --- Desenha seta estilo RViz (triângulo com borda preta) ---
-                                    # Comprimento em metros -> pixels; base proporcional
-                                    L_pix = max(16, int(round(0.5 / max(resolution, 1e-6))))   # ~0.5 m
-                                    base_w = max(12, int(round(L_pix * 0.65)))                  # largura da base (~65% do comprimento)
-                                    back_off = int(round(L_pix * 0.35))                         # recuo da base em relação ao centro
-
-                                    c = math.cos(yaw_disp)
-                                    s = math.sin(yaw_disp)
-
-                                    # Vértices no sistema do mapa (antes do flip vertical):
-                                    # - ápice aponta para frente
-                                    ax = px + int(round(L_pix * c))
-                                    ay = py + int(round(L_pix * s))
-                                    # - centro da base recuado
-                                    bx = px - int(round(back_off * c))
-                                    by = py - int(round(back_off * s))
-                                    # - cantos da base (offset perpendicular)
-                                    half_w = base_w // 2
-                                    # vetor perpendicular (−s, c)
-                                    lx = bx + int(round(half_w * (-s)))
-                                    ly = by + int(round(half_w * ( c)))
-                                    rx_ = bx - int(round(half_w * (-s)))
-                                    ry_ = by - int(round(half_w * ( c)))
-
-                                    # Converte Y para o sistema da imagem (flipud aplicado em img_arr)
-                                    def disp_y(y_pix): return (height - 1) - y_pix
-                                    p_apex = (ax,  disp_y(ay))
-                                    p_left = (lx,  disp_y(ly))
-                                    p_right= (rx_, disp_y(ry_))
-
-                                    # Desenho: preenche triângulo laranja e contorna em preto (largura 3-4 px)
-                                    from PIL import ImageDraw
-                                    pil_rgb = pil_img.convert('RGB')
-                                    draw = ImageDraw.Draw(pil_rgb)
-
-                                    fill_color = (95, 220, 95)   # laranja
-                                    edge_color = (0, 0, 0)        # preto
-                                    tri = [p_apex, p_right, p_left]
-
-                                    # Preenche
-                                    draw.polygon(tri, fill=fill_color)
-                                    # Contorno grosso (fecha o polígono)
-                                    draw.line(tri + [tri[0]], fill=edge_color, width=2)
-
-                                    pil_to_show = pil_rgb
+                                    ox_q = float(origin_ori.get('x', 0.0))
+                                    oy_q = float(origin_ori.get('y', 0.0))
+                                    oz_q = float(origin_ori.get('z', 0.0))
+                                    ow_q = float(origin_ori.get('w', 1.0))
+                                    yaw0 = math.atan2(2.0*(ow_q*oz_q + ox_q*oy_q), 1.0 - 2.0*(oy_q*oy_q + oz_q*oz_q))
                                 except Exception:
-                                    pil_to_show = pil_img
+                                    yaw0 = 0.0
 
-                                st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
-                                
+                                rx = float(pos.get('x', 0.0)); ry = float(pos.get('y', 0.0))
+                                qx = float(ori.get('x', 0.0)); qy = float(ori.get('y', 0.0))
+                                qz = float(ori.get('z', 0.0)); qw = float(ori.get('w', 1.0))
 
-                                # Mostra idade da última atualização
+                                # map->pixels (compensando rotação do origin)
+                                dx = rx - ox; dy = ry - oy
+                                if abs(yaw0) > 1e-6:
+                                    cy, sy = math.cos(-yaw0), math.sin(-yaw0)
+                                    mx = cy*dx - sy*dy
+                                    my = sy*dx + cy*dy
+                                else:
+                                    mx, my = dx, dy
+                                px = int(round(mx / resolution))
+                                py = int(round(my / resolution))
+
+                                # yaw do robô para desenhar seta
+                                try:
+                                    yaw_robot = math.atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz))
+                                except Exception:
+                                    yaw_robot = 0.0
+                                yaw_disp = yaw_robot - yaw0
+                                if yaw_disp > math.pi: yaw_disp -= 2.0*math.pi
+                                if yaw_disp < -math.pi: yaw_disp += 2.0*math.pi
+
+                                # desenha seta
+                                def disp_y(y_pix): return (height - 1) - y_pix
+                                L_pix = max(16, int(round(0.5 / max(resolution, 1e-6))))
+                                base_w = max(12, int(round(L_pix * 0.65)))
+                                back_off = int(round(L_pix * 0.35))
+                                c = math.cos(yaw_disp); s = math.sin(yaw_disp)
+                                ax = px + int(round(L_pix * c)); ay = py + int(round(L_pix * s))
+                                bx = px - int(round(back_off * c)); by = py - int(round(back_off * s))
+                                half_w = base_w // 2
+                                lx = bx + int(round(half_w * (-s))); ly = by + int(round(half_w * ( c)))
+                                rx_ = bx - int(round(half_w * (-s))); ry_ = by - int(round(half_w * ( c)))
+                                p_apex  = (ax,  disp_y(ay))
+                                p_left  = (lx,  disp_y(ly))
+                                p_right = (rx_, disp_y(ry_))
+                                pil_rgb = pil_img.convert('RGB')
+                                draw = ImageDraw.Draw(pil_rgb)
+                                tri = [p_apex, p_right, p_left]
+                                draw.polygon(tri, fill=(245,179,66))
+                                draw.line(tri + [tri[0]], fill=(0,0,0), width=2)
+                                pil_to_show = pil_rgb
+
+                                # Selecão de waypoint: imagem clicável
+                                if st.session_state['wp_select_mode'] and get_img_click is not None:
+                                    st.caption("Clique no mapa para escolher o waypoint temporário")
+                                    click = get_img_click(pil_to_show, key="map_click_wp", width='stretch')
+
+                                    # Se clicou, converte p/ coordenadas do mapa e marca o ponto
+                                    if click:
+                                        disp_w = click.get("width") or width
+                                        disp_h = click.get("height") or height
+                                        cx_disp = float(click["x"])
+                                        cy_disp = float(click["y"])
+                                        scale_x = width / float(disp_w)
+                                        scale_y = height / float(disp_h)
+                                        px_pix = int(round(cx_disp * scale_x))
+                                        py_pix_img = int(round(cy_disp * scale_y))
+
+                                        # marca o ponto na imagem (feedback visual)
+                                        marked = pil_to_show.copy()
+                                        dm = ImageDraw.Draw(marked)
+                                        r = max(4, int(round(6)))
+                                        dm.ellipse([(px_pix - r, py_pix_img - r), (px_pix + r, py_pix_img + r)],
+                                                   outline=(0,255,0), width=3)
+                                        st.image(marked, caption="Mapa (/map)", width='stretch')
+
+                                        # desfaz o flip para voltar ao índice de pixel do mapa
+                                        py_pix = int(round((height - 1) - py_pix_img))
+
+                                        # pixels -> metros no frame do mapa
+                                        mx_goal = px_pix * resolution
+                                        my_goal = py_pix * resolution
+                                        if abs(yaw0) > 1e-6:
+                                            c0, s0 = math.cos(yaw0), math.sin(yaw0)
+                                            dx_g = c0*mx_goal - s0*my_goal
+                                            dy_g = s0*mx_goal + c0*my_goal
+                                        else:
+                                            dx_g, dy_g = mx_goal, my_goal
+                                        gx = ox + dx_g
+                                        gy = oy + dy_g
+
+                                        st.session_state['pending_goal'] = {'x': gx, 'y': gy}
+                                    else:
+                                        # mostra o mapa normalmente quando ainda não clicou
+                                        st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
+                                else:
+                                    # modo normal: só exibe o mapa
+                                    st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
+
+                                # painel para confirmar envio do waypoint temporário
+                                if st.session_state['pending_goal'] is not None:
+                                    pg = st.session_state['pending_goal']
+                                    st.info(f"Waypoint temporário: X={pg['x']:.3f} m, Y={pg['y']:.3f} m (frame 'map')")
+                                    yaw_sug_deg = math.degrees(yaw_robot)
+                                    gyaw_deg = st.number_input(
+                                        "Yaw do waypoint (graus)", value=float(yaw_sug_deg),
+                                        step=5.0, format="%.1f", key="wp_yaw_deg"
+                                    )
+
+                                    # função auxiliar caso ros_handler não exponha publish_goal_pose
+                                    def _publish_goal_pose_fallback(x, y, yaw_rad):
+                                        try:
+                                            import roslibpy, time as _t
+                                            client = st.session_state.get('ros_client')
+                                            if not client or not getattr(client, 'is_connected', False):
+                                                return False
+                                            topic = roslibpy.Topic(client, '/goal_pose', 'geometry_msgs/PoseStamped')
+                                            now = _t.time(); sec = int(now); nsec = int((now - sec) * 1e9)
+                                            qz = math.sin(yaw_rad/2.0); qw = math.cos(yaw_rad/2.0)
+                                            msg = roslibpy.Message({
+                                                'header': {'frame_id': 'map', 'stamp': {'sec': sec, 'nanosec': nsec}},
+                                                'pose': {
+                                                    'position': {'x': float(x), 'y': float(y), 'z': 0.0},
+                                                    'orientation': {'x': 0.0, 'y': 0.0, 'z': qz, 'w': qw}
+                                                }
+                                            })
+                                            topic.publish(msg)
+                                            return True
+                                        except Exception:
+                                            return False
+
+                                    if st.button("Enviar waypoint", type="primary", key="send_wp_goal_pose"):
+                                        publish_goal_pose = getattr(ros_handler, 'publish_goal_pose', None)
+                                        yaw_rad = math.radians(gyaw_deg)
+                                        ok = False
+                                        if callable(publish_goal_pose):
+                                            try:
+                                                ok = publish_goal_pose(pg['x'], pg['y'], yaw_rad,
+                                                                       frame_id='map', topic_name='/goal_pose',
+                                                                       goal_pub=getattr(st.session_state.get('robot_state', None), 'goal_pose_pub', None),
+                                                                       client=st.session_state.get('ros_client'))
+                                            except Exception:
+                                                ok = False
+                                        if not ok:
+                                            ok = _publish_goal_pose_fallback(pg['x'], pg['y'], yaw_rad)
+
+                                        if ok:
+                                            st.success("Waypoint publicado em /goal_pose.")
+                                        else:
+                                            st.error("Falha ao publicar em /goal_pose.")
+
+                                # idade do mapa
                                 if last_update:
                                     age = time.time() - last_update
                                     st.caption(f"Última atualização: {age:.1f}s atrás")
@@ -252,7 +322,6 @@ def main():
                         except Exception as e:
                             st.error(f"Erro ao processar mapa: {e}")
                     else:
-                        # Mostra imagem de fallback
                         image_path = Path(__file__).parent.parent.parent / "assets" / "Simulacao.png"
                         if image_path.exists():
                             st.image(str(image_path), width='stretch')

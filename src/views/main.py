@@ -30,9 +30,9 @@ def main():
     import importlib
     ros_handler = importlib.import_module('src.handlers.ros_handler')
     initialize_ros_connection = getattr(ros_handler, 'initialize_ros_connection')
-    enable_post = getattr(ros_handler, 'enable_post', None)
-    disable_post = getattr(ros_handler, 'disable_post', None)
-    is_post_enabled = getattr(ros_handler, 'is_post_enabled', lambda: False)
+
+    # Sidebar: configs e toggles
+    st.sidebar.title("Configurações")
 
     # Sidebar: host/port do rosbridge
     host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.8'))
@@ -63,34 +63,14 @@ def main():
         if 'cmd_vel_publisher' not in st.session_state:
             st.session_state.cmd_vel_publisher = None
 
-    # Sidebar: configs e toggles
-    st.sidebar.title("Configurações")
-
     if 'auto_update_enabled' not in st.session_state:
         st.session_state.auto_update_enabled = True
-
-    if 'post_enabled' not in st.session_state:
-        st.session_state.post_enabled = is_post_enabled()
 
     st.session_state.auto_update_enabled = st.sidebar.toggle(
         "Habilitar atualização em tempo real",
         value=st.session_state.auto_update_enabled,
         help="Quando ativado, os dados da interface são atualizados automaticamente."
     )
-
-    new_post_enabled = st.sidebar.toggle(
-        "Habilitar envios ROS (POST)",
-        value=st.session_state.post_enabled,
-        help="Quando desativado, comandos não serão publicados no ROS."
-    )
-    if new_post_enabled != st.session_state.post_enabled:
-        st.session_state.post_enabled = new_post_enabled
-        if new_post_enabled:
-            if enable_post:
-                enable_post()
-        else:
-            if disable_post:
-                disable_post()
 
     # Navegação
     st.sidebar.title("Navegação")
@@ -262,7 +242,6 @@ def main():
                                         gy = oy + dy_g
 
                                         st.session_state['pending_goal'] = {'x': gx, 'y': gy}
-                                        st.session_state['wp_yaw_deg'] = float(math.degrees(yaw_robot))
                                     else:
                                         # Ainda sem clique
                                         st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
@@ -270,21 +249,8 @@ def main():
                                     # Modo normal: só exibe o mapa
                                     st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
 
-                                # Ajuste de yaw se existir waypoint temporário
-                                if st.session_state['pending_goal'] is not None:
-                                    pg = st.session_state['pending_goal']
-                                    st.info(f"Waypoint temporário: X={pg['x']:.3f} m, Y={pg['y']:.3f} m (frame 'map')")
-                                    yaw_default = float(st.session_state.get('wp_yaw_deg', math.degrees(yaw_robot)))
-                                    _yaw_input = st.number_input(
-                                        "Yaw do waypoint (graus)",
-                                        value=yaw_default, step=5.0, format="%.1f",
-                                        key="wp_yaw_deg"
-                                    )
-
-                                # Info sobre a idade do mapa
-                                if last_update:
-                                    age = time.time() - last_update
-                                    st.caption(f"Última atualização: {age:.1f}s atrás")
+                                # Removido: info do waypoint temporário no painel do mapa
+                                # (as coordenadas permanecem apenas na coluna da direita)
                             else:
                                 st.warning("Tamanho dos dados do mapa inconsistente")
                         except Exception as e:
@@ -338,11 +304,8 @@ def main():
                     st.markdown("**Translation**")
                     st.text(f"X: {repr(px)}")
                     st.text(f"Y: {repr(py)}")
-                    st.text(f"Z: {repr(pz)}")
 
                     st.markdown("**Rotation**")
-                    st.text(f"x: {repr(ox)}")
-                    st.text(f"y: {repr(oy)}")
                     st.text(f"z: {repr(oz)}")
                     st.text(f"w: {repr(ow)}")
 
@@ -366,12 +329,14 @@ def main():
                         if not pg2:
                             st.warning("Nenhum waypoint temporário selecionado.")
                         else:
-                            yaw_deg = st.session_state.get('wp_yaw_deg', 0.0)
-                            yaw_rad = math.radians(float(yaw_deg))
+                            # Usa o yaw atual do robô
+                            try:
+                                yaw_rad = math.atan2(2.0 * (ow * oz + ox * oy), 1.0 - 2.0 * (oy * oy + oz * oz))
+                            except Exception:
+                                yaw_rad = 0.0
 
                             # Publica via ros_handler.publish_goal_pose, com fallback
                             publish_goal_pose = getattr(ros_handler, 'publish_goal_pose', None)
-
                             def _publish_goal_pose_fallback(x, y, yaw_r):
                                 try:
                                     import roslibpy

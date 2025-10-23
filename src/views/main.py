@@ -116,13 +116,70 @@ def main():
             if 'pending_goal' not in st.session_state:
                 st.session_state['pending_goal'] = None
             if 'wp_select_mode' not in st.session_state:
-                st.session_state['wp_select_mode'] = True  # deixe ativo por padrão
+                st.session_state['wp_select_mode'] = True  # ativo por padrão
 
-            # toggle simples para ativar/desativar seleção
-            st.session_state['wp_select_mode'] = st.toggle(
-                "Modo seleção de waypoint (clicar no mapa)",
-                value=st.session_state['wp_select_mode']
-            )
+            # Linha com switch + botão Enviar waypoint
+            s_col, b_col = st.columns([3, 1])
+            with s_col:
+                st.session_state['wp_select_mode'] = st.toggle(
+                    "Modo seleção de waypoint (clicar no mapa)",
+                    value=st.session_state['wp_select_mode']
+                )
+            with b_col:
+                if st.button("Enviar waypoint", type="primary", width='stretch', key="btn_send_wp_top"):
+                    # Publica o último waypoint temporário, se existir
+                    pg = st.session_state.get('pending_goal')
+                    if not pg:
+                        st.warning("Nenhum waypoint temporário selecionado.")
+                    else:
+                        # Usa yaw escolhido anteriormente (se existir) ou o último yaw do robô como padrão
+                        yaw_deg = st.session_state.get('wp_yaw_deg', 0.0)
+                        yaw_rad = math.radians(float(yaw_deg))
+                        # Publica via ros_handler.publish_goal_pose (com fallback)
+                        import importlib
+                        ros_handler = importlib.import_module('src.handlers.ros_handler')
+                        publish_goal_pose = getattr(ros_handler, 'publish_goal_pose', None)
+
+                        def _publish_goal_pose_fallback(x, y, yaw_r):
+                            try:
+                                import roslibpy, time as _t
+                                client = st.session_state.get('ros_client')
+                                if not client or not getattr(client, 'is_connected', False):
+                                    return False
+                                topic = roslibpy.Topic(client, '/goal_pose', 'geometry_msgs/PoseStamped')
+                                now = _t.time(); sec = int(now); nsec = int((now - sec) * 1e9)
+                                qz = math.sin(yaw_r/2.0); qw = math.cos(yaw_r/2.0)
+                                msg = roslibpy.Message({
+                                    'header': {'frame_id': 'map', 'stamp': {'sec': sec, 'nanosec': nsec}},
+                                    'pose': {
+                                        'position': {'x': float(x), 'y': float(y), 'z': 0.0},
+                                        'orientation': {'x': 0.0, 'y': 0.0, 'z': qz, 'w': qw}
+                                    }
+                                })
+                                topic.publish(msg)
+                                return True
+                            except Exception:
+                                return False
+
+                        ok = False
+                        try:
+                            if callable(publish_goal_pose):
+                                ok = publish_goal_pose(pg['x'], pg['y'], yaw_rad,
+                                                       frame_id='map', topic_name='/goal_pose',
+                                                       goal_pub=getattr(st.session_state.get('robot_state', None), 'goal_pose_pub', None),
+                                                       client=st.session_state.get('ros_client'))
+                        except Exception:
+                            ok = False
+                        if not ok:
+                            ok = _publish_goal_pose_fallback(pg['x'], pg['y'], yaw_rad)
+
+                        if ok:
+                            st.success("Waypoint publicado em /goal_pose.")
+                        else:
+                            st.error("Falha ao publicar em /goal_pose.")
+
+            if get_img_click is None and st.session_state['wp_select_mode']:
+                st.warning("Pacote 'streamlit-image-coordinates' não encontrado. Instale com: pip install streamlit-image-coordinates")
 
             if map_state:
                 try:
@@ -214,13 +271,13 @@ def main():
                                 draw.line(tri + [tri[0]], fill=(0,0,0), width=2)
                                 pil_to_show = pil_rgb
 
-                                # Selecão de waypoint: imagem clicável
+                                # Imagem clicável para waypoint temporário
                                 if st.session_state['wp_select_mode'] and get_img_click is not None:
                                     st.caption("Clique no mapa para escolher o waypoint temporário")
                                     click = get_img_click(pil_to_show, key="map_click_wp", width='stretch')
 
-                                    # Se clicou, converte p/ coordenadas do mapa e marca o ponto
                                     if click:
+                                        # Reescala para coordenadas originais
                                         disp_w = click.get("width") or width
                                         disp_h = click.get("height") or height
                                         cx_disp = float(click["x"])
@@ -230,18 +287,16 @@ def main():
                                         px_pix = int(round(cx_disp * scale_x))
                                         py_pix_img = int(round(cy_disp * scale_y))
 
-                                        # marca o ponto na imagem (feedback visual)
+                                        # Marca o ponto
                                         marked = pil_to_show.copy()
                                         dm = ImageDraw.Draw(marked)
-                                        r = max(4, int(round(6)))
+                                        r = max(4, 6)
                                         dm.ellipse([(px_pix - r, py_pix_img - r), (px_pix + r, py_pix_img + r)],
                                                    outline=(0,255,0), width=3)
                                         st.image(marked, caption="Mapa (/map)", width='stretch')
 
-                                        # desfaz o flip para voltar ao índice de pixel do mapa
+                                        # Converte para coordenadas do mapa (desfaz flip)
                                         py_pix = int(round((height - 1) - py_pix_img))
-
-                                        # pixels -> metros no frame do mapa
                                         mx_goal = px_pix * resolution
                                         my_goal = py_pix * resolution
                                         if abs(yaw0) > 1e-6:
@@ -254,6 +309,8 @@ def main():
                                         gy = oy + dy_g
 
                                         st.session_state['pending_goal'] = {'x': gx, 'y': gy}
+                                        # Atualiza yaw sugerido (para o input abaixo e para o botão superior)
+                                        st.session_state['wp_yaw_deg'] = float(math.degrees(yaw_robot))
                                     else:
                                         # mostra o mapa normalmente quando ainda não clicou
                                         st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
@@ -261,57 +318,16 @@ def main():
                                     # modo normal: só exibe o mapa
                                     st.image(pil_to_show, caption="Mapa (/map)", width='stretch')
 
-                                # painel para confirmar envio do waypoint temporário
+                                # Se existir waypoint temporário, permite ajustar yaw
                                 if st.session_state['pending_goal'] is not None:
                                     pg = st.session_state['pending_goal']
                                     st.info(f"Waypoint temporário: X={pg['x']:.3f} m, Y={pg['y']:.3f} m (frame 'map')")
-                                    yaw_sug_deg = math.degrees(yaw_robot)
-                                    gyaw_deg = st.number_input(
-                                        "Yaw do waypoint (graus)", value=float(yaw_sug_deg),
-                                        step=5.0, format="%.1f", key="wp_yaw_deg"
+                                    yaw_default = float(st.session_state.get('wp_yaw_deg', math.degrees(yaw_robot)))
+                                    st.session_state['wp_yaw_deg'] = st.number_input(
+                                        "Yaw do waypoint (graus)",
+                                        value=yaw_default, step=5.0, format="%.1f",
+                                        key="wp_yaw_deg"
                                     )
-
-                                    # função auxiliar caso ros_handler não exponha publish_goal_pose
-                                    def _publish_goal_pose_fallback(x, y, yaw_rad):
-                                        try:
-                                            import roslibpy, time as _t
-                                            client = st.session_state.get('ros_client')
-                                            if not client or not getattr(client, 'is_connected', False):
-                                                return False
-                                            topic = roslibpy.Topic(client, '/goal_pose', 'geometry_msgs/PoseStamped')
-                                            now = _t.time(); sec = int(now); nsec = int((now - sec) * 1e9)
-                                            qz = math.sin(yaw_rad/2.0); qw = math.cos(yaw_rad/2.0)
-                                            msg = roslibpy.Message({
-                                                'header': {'frame_id': 'map', 'stamp': {'sec': sec, 'nanosec': nsec}},
-                                                'pose': {
-                                                    'position': {'x': float(x), 'y': float(y), 'z': 0.0},
-                                                    'orientation': {'x': 0.0, 'y': 0.0, 'z': qz, 'w': qw}
-                                                }
-                                            })
-                                            topic.publish(msg)
-                                            return True
-                                        except Exception:
-                                            return False
-
-                                    if st.button("Enviar waypoint", type="primary", key="send_wp_goal_pose"):
-                                        publish_goal_pose = getattr(ros_handler, 'publish_goal_pose', None)
-                                        yaw_rad = math.radians(gyaw_deg)
-                                        ok = False
-                                        if callable(publish_goal_pose):
-                                            try:
-                                                ok = publish_goal_pose(pg['x'], pg['y'], yaw_rad,
-                                                                       frame_id='map', topic_name='/goal_pose',
-                                                                       goal_pub=getattr(st.session_state.get('robot_state', None), 'goal_pose_pub', None),
-                                                                       client=st.session_state.get('ros_client'))
-                                            except Exception:
-                                                ok = False
-                                        if not ok:
-                                            ok = _publish_goal_pose_fallback(pg['x'], pg['y'], yaw_rad)
-
-                                        if ok:
-                                            st.success("Waypoint publicado em /goal_pose.")
-                                        else:
-                                            st.error("Falha ao publicar em /goal_pose.")
 
                                 # idade do mapa
                                 if last_update:
@@ -336,7 +352,6 @@ def main():
 
             robot_state = st.session_state.get('robot_state', None)
             ros_client = st.session_state.get('ros_client', None)
-
             # Verifica se a conexão está ativa para decidir o que mostrar
             if robot_state and ros_client and ros_client.is_connected:
                 # Se ONLINE, busca os dados em tempo real do objeto de estado
@@ -354,18 +369,14 @@ def main():
                     else:
                         pos = getattr(robot_state, 'position', {'x': 0.0, 'y': 0.0, 'z': 0.0})
                         ori = getattr(robot_state, 'orientation', {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0})
-
                     def _fv(d, k, default=0.0):
                         try:
                             return float(d.get(k, default)) if isinstance(d, dict) else default
                         except Exception:
                             return default
-
-                    # valores numéricos (como float) e exibição com repr para preservar notação
                     px = _fv(pos, 'x'); py = _fv(pos, 'y'); pz = _fv(pos, 'z')
                     ox = _fv(ori, 'x'); oy = _fv(ori, 'y'); oz = _fv(ori, 'z'); ow = _fv(ori, 'w', 1.0)
 
-                    # Exibição em seções para caber o valor inteiro na tela
                     st.markdown("**Translation**")
                     st.text(f"X: {repr(px)}")
                     st.text(f"Y: {repr(py)}")
@@ -376,6 +387,20 @@ def main():
                     st.text(f"y: {repr(oy)}")
                     st.text(f"z: {repr(oz)}")
                     st.text(f"w: {repr(ow)}")
+
+                    # --- Waypoint temporário (abaixo do Rotation) ---
+                    pg = st.session_state.get('pending_goal')
+                    st.markdown("**Waypoint temporário**")
+                    if pg:
+                        try:
+                            st.text(f"X: {pg['x']:.3f}")
+                            st.text(f"Y: {pg['y']:.3f}")
+                        except Exception:
+                            st.text("X: —")
+                            st.text("Y: —")
+                    else:
+                        st.text("X: —")
+                        st.text("Y: —")
                 except Exception as e:
                     st.write("Erro ao exibir pose:", e)
             else:

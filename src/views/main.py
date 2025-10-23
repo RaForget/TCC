@@ -275,7 +275,7 @@ def main():
                                     pg = st.session_state['pending_goal']
                                     st.info(f"Waypoint temporário: X={pg['x']:.3f} m, Y={pg['y']:.3f} m (frame 'map')")
                                     yaw_default = float(st.session_state.get('wp_yaw_deg', math.degrees(yaw_robot)))
-                                    st.session_state['wp_yaw_deg'] = st.number_input(
+                                    _yaw_input = st.number_input(
                                         "Yaw do waypoint (graus)",
                                         value=yaw_default, step=5.0, format="%.1f",
                                         key="wp_yaw_deg"

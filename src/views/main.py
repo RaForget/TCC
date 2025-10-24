@@ -11,8 +11,6 @@ root_dir = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, root_dir)
 
 # Imports absolutos
-# Import do ros_handler será feito dentro de main() para evitar import circular
-from src.views.parametrizacao import show_parametrizacao
 from src.views.controles import show_controles
 
 # Configuração da página com sidebar inicial expandida
@@ -74,7 +72,7 @@ def main():
 
     # Navegação
     st.sidebar.title("Navegação")
-    menu = st.sidebar.selectbox("Telas", ["Visualização", "Parametrização", "Controles"])
+    menu = st.sidebar.selectbox("Telas", ["Visualização", "Controles"])
 
     # ----------------------------------------- Visualização ------------------------------------------------
     if menu == "Visualização":
@@ -381,10 +379,6 @@ def main():
                     st.write("Erro ao exibir pose:", e)
             else:
                 st.warning("Offline")
-
-    # ----------------------------------------- Parametrização ------------------------------------------------
-    elif menu == "Parametrização":
-        show_parametrizacao()
 
     # ----------------------------------------- Controles ------------------------------------------------
     elif menu == "Controles":

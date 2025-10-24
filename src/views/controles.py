@@ -162,7 +162,7 @@ def show_controles():
         st.session_state.teleop_thread.start()
 
     if cur_enabled:
-        st.info("Use as teclas W, A, S, D ou as Setas para controlar. Pressione Espaço para parar.")
+        st.info("Clique nos botões para controlar o robô")
     else:
         st.warning("Controle manual desativado.")
 
@@ -221,3 +221,23 @@ def show_controles():
 
     # Feedback
     st.metric("Último Comando Enviado", st.session_state.get('last_command', 'Nenhum'))
+
+    # Ajustes de velocidade (agora abaixo do "Último Comando Enviado")
+    st.markdown("****Ajustes de velocidade****")
+    col_v1, col_v2 = st.columns(2)
+    with col_v1:
+        v_lin = st.slider(
+            "Velocidade Linear Máxima (m/s)",
+            min_value=0.0, max_value=2.0,
+            value=float(st.session_state.get('TELEOP_VEL_LINEAR', 0.5)),
+            step=0.05
+        )
+    with col_v2:
+        v_ang = st.slider(
+            "Velocidade Angular Máxima (rad/s)",
+            min_value=0.0, max_value=4.0,
+            value=float(st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)),
+            step=0.05
+        )
+    st.session_state['TELEOP_VEL_LINEAR'] = float(v_lin)
+    st.session_state['TELEOP_VEL_ANGULAR'] = float(v_ang)

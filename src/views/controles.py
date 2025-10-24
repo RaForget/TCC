@@ -38,8 +38,20 @@ def publish_cmd_vel(publisher, linear_x=0.0, angular_z=0.0):
 def _teleop_worker(stop_event: threading.Event):
     rate_hz = 10.0
     dt = 1.0 / rate_hz
+    last_enabled = st.session_state.get('teleop_enabled', False)
     while not stop_event.is_set():
         publisher = st.session_state.get('cmd_vel_publisher', None)
+        enabled = st.session_state.get('teleop_enabled', False)
+
+        # Se acabou de desabilitar, envia uma vez comando de parada
+        if not enabled:
+            if last_enabled and publisher:
+                publish_cmd_vel(publisher, 0.0, 0.0)
+            last_enabled = False
+            time.sleep(dt)
+            continue
+
+        last_enabled = True
         cmd = st.session_state.get('teleop_command', 'PARAR')
         lin, ang = 0.0, 0.0
         if cmd == "FRENTE":
@@ -98,6 +110,10 @@ def _set_teleop_command(cmd: str):
 
 def show_controles():
     st.header("Controles")
+    # Estado do controle manual
+    if 'teleop_enabled' not in st.session_state:
+        st.session_state['teleop_enabled'] = False
+    prev_enabled = st.session_state.get('_teleop_enabled_prev', st.session_state['teleop_enabled'])
 
     # --- Acessa o publicador ROS da sessão ---
     ros_client = st.session_state.get('ros_client', None)
@@ -114,6 +130,18 @@ def show_controles():
     if not publisher:
         st.error("Não foi possível inicializar o publicador. Verifique a conexão com o ROS.")
         return
+    # Toggle para ligar/desligar o controle manual
+    st.subheader("Controle manual")
+    st.toggle("Ativar controle manual", key="teleop_enabled")
+    cur_enabled = st.session_state.get('teleop_enabled', False)
+    if prev_enabled and not cur_enabled:
+        # Ao desativar: para imediatamente
+        _set_teleop_command("PARAR")
+        try:
+            publish_cmd_vel(publisher, 0.0, 0.0)
+        except Exception:
+            pass
+    st.session_state['_teleop_enabled_prev'] = cur_enabled
 
     # Velocidades padrão
     st.session_state.setdefault('TELEOP_VEL_LINEAR', 0.5)
@@ -133,11 +161,16 @@ def show_controles():
         )
         st.session_state.teleop_thread.start()
 
-    st.info("Use as teclas W, A, S, D ou as Setas para controlar. Pressione Espaço para parar.")
+    if cur_enabled:
+        st.info("Use as teclas W, A, S, D ou as Setas para controlar. Pressione Espaço para parar.")
+    else:
+        st.warning("Controle manual desativado.")
 
     # Teclas observadas
     keys_to_watch = ['w', 's', 'a', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']
-    key_event = keyboard_listener(key_to_watch=keys_to_watch, key_name="keyboard_listener_unique_key")
+    key_event = None if not cur_enabled else keyboard_listener(
+        key_to_watch=keys_to_watch, key_name="keyboard_listener_unique_key"
+    )
 
     # Processa eventos de teclado (altera comando; publicação é contínua no worker)
     if key_event and isinstance(key_event, dict) and key_event.get('type') == 'keydown':
@@ -152,6 +185,8 @@ def show_controles():
             _set_teleop_command("DIREITA")
         elif k == ' ':
             _set_teleop_command("PARAR")
+        # Atualiza ícones imediatamente
+        st.rerun()
 
     # Botões (também alteram o comando; o worker mantém o envio)
     last_command = st.session_state.get('last_command', 'PARAR')
@@ -164,20 +199,25 @@ def show_controles():
     _, dpad_col, _ = st.columns([1, 1.2, 1])
     with dpad_col:
         r1c1, r1c2, r1c3 = st.columns(3)
-        if r1c2.button(up_label, width='stretch', key="up_btn"):
+        if r1c2.button(up_label, width='stretch', key="up_btn", disabled=not cur_enabled):
             _set_teleop_command("FRENTE")
+            st.rerun()
 
         r2c1, r2c2, r2c3 = st.columns(3)
-        if r2c1.button(left_label, width='stretch', key="left_btn"):
+        if r2c1.button(left_label, width='stretch', key="left_btn", disabled=not cur_enabled):
             _set_teleop_command("ESQUERDA")
-        if r2c2.button(stop_label, width='stretch', key="stop_btn"):
+            st.rerun()
+        if r2c2.button(stop_label, width='stretch', key="stop_btn", disabled=not cur_enabled):
             _set_teleop_command("PARAR")
-        if r2c3.button(right_label, width='stretch', key="right_btn"):
+            st.rerun()
+        if r2c3.button(right_label, width='stretch', key="right_btn", disabled=not cur_enabled):
             _set_teleop_command("DIREITA")
+            st.rerun()
 
         r3c1, r3c2, r3c3 = st.columns(3)
-        if r3c2.button(down_label, width='stretch', key="down_btn"):
+        if r3c2.button(down_label, width='stretch', key="down_btn", disabled=not cur_enabled):
             _set_teleop_command("RE")
+            st.rerun()
 
     # Feedback
     st.metric("Último Comando Enviado", st.session_state.get('last_command', 'Nenhum'))

@@ -35,7 +35,7 @@ def main():
     st.sidebar.title("Configurações")
 
     # Sidebar: host/port do rosbridge
-    host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.8'))
+    host = st.sidebar.text_input("ROSBridge host", value=os.getenv('ROSBRIDGE_HOST', '192.168.1.11'))
     port = int(st.sidebar.number_input("ROSBridge port", value=int(os.getenv('ROSBRIDGE_PORT', '9090')),
                                        min_value=1, max_value=65535))
 

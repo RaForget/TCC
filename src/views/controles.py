@@ -34,6 +34,27 @@ def publish_cmd_vel(publisher, linear_x=0.0, angular_z=0.0):
     except Exception as e:
         st.warning(f"Falha ao publicar /cmd_vel: {e}")
 
+def _compute_cmd_vel(cmd: str, v_lin_max: float, v_ang_max: float) -> tuple[float, float]:
+    """
+    Regras:
+    - Frente:  linear = TELEOP_VEL_LINEAR, angular = 0
+    - Ré:      linear = -TELEOP_VEL_LINEAR, angular = 0
+    - Esquerda:linear = min(0.5, TELEOP_VEL_LINEAR), angular = min(0.5, TELEOP_VEL_ANGULAR)
+    - Direita: linear = min(0.5, TELEOP_VEL_LINEAR), angular = -min(0.5, TELEOP_VEL_ANGULAR)
+    - Parar:   linear = 0, angular = 0
+    """
+    v_lin_max = float(v_lin_max)
+    v_ang_max = float(v_ang_max)
+    if cmd == "FRENTE":
+        return v_lin_max, 0.0
+    if cmd == "RE":
+        return -v_lin_max, 0.0
+    if cmd == "ESQUERDA":
+        return min(0.5, v_lin_max), min(0.5, v_ang_max)
+    if cmd == "DIREITA":
+        return min(0.5, v_lin_max), -min(0.5, v_ang_max)
+    return 0.0, 0.0
+
 # --- Worker de teleop: publica continuamente até mudar o comando ---
 def _teleop_worker(stop_event: threading.Event):
     rate_hz = 10.0
@@ -53,15 +74,11 @@ def _teleop_worker(stop_event: threading.Event):
 
         last_enabled = True
         cmd = st.session_state.get('teleop_command', 'PARAR')
-        lin, ang = 0.0, 0.0
-        if cmd == "FRENTE":
-            lin = st.session_state.get('TELEOP_VEL_LINEAR', 0.5)
-        elif cmd == "RE":
-            lin = -st.session_state.get('TELEOP_VEL_LINEAR', 0.5)
-        elif cmd == "ESQUERDA":
-            ang = st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)
-        elif cmd == "DIREITA":
-            ang = -st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)
+        lin, ang = _compute_cmd_vel(
+            cmd,
+            st.session_state.get('TELEOP_VEL_LINEAR', 0.5),
+            st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)
+        )
         if publisher:
             publish_cmd_vel(publisher, lin, ang)
         time.sleep(dt)
@@ -201,22 +218,48 @@ def show_controles():
         r1c1, r1c2, r1c3 = st.columns(3)
         if r1c2.button(up_label, width='stretch', key="up_btn", disabled=not cur_enabled):
             _set_teleop_command("FRENTE")
+            # Envia imediatamente
+            lin, ang = _compute_cmd_vel(
+                "FRENTE",
+                st.session_state.get('TELEOP_VEL_LINEAR', 0.5),
+                st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)
+            )
+            publish_cmd_vel(publisher, lin, ang)
             st.rerun()
 
         r2c1, r2c2, r2c3 = st.columns(3)
         if r2c1.button(left_label, width='stretch', key="left_btn", disabled=not cur_enabled):
             _set_teleop_command("ESQUERDA")
+            lin, ang = _compute_cmd_vel(
+                "ESQUERDA",
+                st.session_state.get('TELEOP_VEL_LINEAR', 0.5),
+                st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)
+            )
+            publish_cmd_vel(publisher, lin, ang)
             st.rerun()
         if r2c2.button(stop_label, width='stretch', key="stop_btn", disabled=not cur_enabled):
             _set_teleop_command("PARAR")
+            publish_cmd_vel(publisher, 0.0, 0.0)
             st.rerun()
         if r2c3.button(right_label, width='stretch', key="right_btn", disabled=not cur_enabled):
             _set_teleop_command("DIREITA")
+            lin, ang = _compute_cmd_vel(
+                "DIREITA",
+                st.session_state.get('TELEOP_VEL_LINEAR', 0.5),
+                st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)
+            )
+            publish_cmd_vel(publisher, lin, ang)
             st.rerun()
 
         r3c1, r3c2, r3c3 = st.columns(3)
         if r3c2.button(down_label, width='stretch', key="down_btn", disabled=not cur_enabled):
             _set_teleop_command("RE")
+            lin, ang = _compute_cmd_vel(
+                "RE",
+                st.session_state.get('TELEOP_VEL_LINEAR', 0.5),
+                st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)
+            )
+            publish_cmd_vel(publisher, lin, ang)
             st.rerun()
 
     # Feedback

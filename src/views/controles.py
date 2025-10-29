@@ -73,7 +73,7 @@ def _compute_cmd_vel(cmd: str, v_lin_max: float, v_ang_max: float):
 # -------------------------------- Worker thread --------------------------------
 def _teleop_worker(pub_box: PublisherBox, stop_event: threading.Event):
     """Publica a cada 0.1s (10 Hz) sem usar st.*"""
-    rate_hz = 10.0
+    rate_hz = 50.0
     dt = 1.0 / rate_hz
     last_enabled = False
 
@@ -190,8 +190,8 @@ def show_controles():
         _set_teleop_command("PARAR")
 
     # Velocidades
-    st.session_state.setdefault('TELEOP_VEL_LINEAR', 0.5)
-    st.session_state.setdefault('TELEOP_VEL_ANGULAR', 1.0)
+    st.session_state.setdefault('TELEOP_VEL_LINEAR', 1.0)
+    st.session_state.setdefault('TELEOP_VEL_ANGULAR', 0.5)
     with _state_lock:
         teleop_state['v_lin'] = float(st.session_state['TELEOP_VEL_LINEAR'])
         teleop_state['v_ang'] = float(st.session_state['TELEOP_VEL_ANGULAR'])
@@ -244,29 +244,48 @@ def show_controles():
     right_label = "▶️" if last_cmd == "DIREITA" else "→"
     stop_label = "⏹️" if last_cmd == "PARAR" else "🟥"
 
+    # CSS para botões maiores
+    st.markdown("""
+        <style>
+        div[data-testid="column"] button {
+            height: 100px !important;
+            font-size: 48px !important;
+            padding: 20px !important;
+        }
+        div[data-testid="column"] button p {
+            font-size: 48px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     # Botões
     _, dpad_col, _ = st.columns([1, 1.2, 1])
     with dpad_col:
         r1c1, r1c2, r1c3 = st.columns(3)
-        if r1c2.button(up_label, key="up_btn", disabled=not cur_enabled):
-            _set_teleop_command("FRENTE")
-            st.rerun()
+        with r1c2:
+            if st.button(up_label, key="up_btn", disabled=not cur_enabled, use_container_width=True):
+                _set_teleop_command("FRENTE")
+                st.rerun()
 
         r2c1, r2c2, r2c3 = st.columns(3)
-        if r2c1.button(left_label, key="left_btn", disabled=not cur_enabled):
-            _set_teleop_command("ESQUERDA")
-            st.rerun()
-        if r2c2.button(stop_label, key="stop_btn", disabled=not cur_enabled):
-            _set_teleop_command("PARAR")
-            st.rerun()
-        if r2c3.button(right_label, key="right_btn", disabled=not cur_enabled):
-            _set_teleop_command("DIREITA")
-            st.rerun()
+        with r2c1:
+            if st.button(left_label, key="left_btn", disabled=not cur_enabled, use_container_width=True):
+                _set_teleop_command("ESQUERDA")
+                st.rerun()
+        with r2c2:
+            if st.button(stop_label, key="stop_btn", disabled=not cur_enabled, use_container_width=True):
+                _set_teleop_command("PARAR")
+                st.rerun()
+        with r2c3:
+            if st.button(right_label, key="right_btn", disabled=not cur_enabled, use_container_width=True):
+                _set_teleop_command("DIREITA")
+                st.rerun()
 
         r3c1, r3c2, r3c3 = st.columns(3)
-        if r3c2.button(down_label, key="down_btn", disabled=not cur_enabled):
-            _set_teleop_command("RE")
-            st.rerun()
+        with r3c2:
+            if st.button(down_label, key="down_btn", disabled=not cur_enabled, use_container_width=True):
+                _set_teleop_command("RE")
+                st.rerun()
 
     # Feedback
     st.metric("Último Comando Enviado", st.session_state.get('last_command', 'Nenhum'))

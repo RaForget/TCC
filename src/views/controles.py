@@ -53,8 +53,8 @@ def _compute_cmd_vel(cmd: str, v_lin_max: float, v_ang_max: float):
     Regras:
     - Frente:   linear = v_lin_max, angular = 0
     - Ré:       linear = -v_lin_max, angular = 0
-    - Esquerda: linear = min(0.5, v_lin_max), angular = min(0.5, v_ang_max)
-    - Direita:  linear = min(0.5, v_lin_max), angular = -min(0.5, v_ang_max)
+    - Esquerda: linear = v_ang_max, angular = v_ang_max
+    - Direita:  linear = v_ang_max, angular = -v_ang_max
     - Parar:    linear = 0, angular = 0
     """
     v_lin_max = float(v_lin_max)
@@ -64,9 +64,9 @@ def _compute_cmd_vel(cmd: str, v_lin_max: float, v_ang_max: float):
     if cmd == "RE":
         return -v_lin_max, 0.0
     if cmd == "ESQUERDA":
-        return min(0.5, v_lin_max), min(0.5, v_ang_max)
+        return v_ang_max, v_ang_max
     if cmd == "DIREITA":
-        return min(0.5, v_lin_max), -min(0.5, v_ang_max)
+        return v_ang_max, -v_ang_max
     return 0.0, 0.0
 
 
@@ -300,7 +300,7 @@ def show_controles():
         )
     with col_v2:
         v_ang = st.slider(
-            "Velocidade Angular Máxima (rad/s)", min_value=0.0, max_value=4.0,
+            "Velocidade Angular Máxima (rad/s)", min_value=0.0, max_value=1.0,
             value=float(st.session_state.get('TELEOP_VEL_ANGULAR', 1.0)), step=0.05
         )
     st.session_state['TELEOP_VEL_LINEAR'] = float(v_lin)

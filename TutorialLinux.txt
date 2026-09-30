@@ -27,7 +27,7 @@ ros2 launch trekking_2025 navigation_launch.py use_sim_time:=true
 // ---------------------- Configuração RViz ----------------------
 
 Rviz -> File -> Open File -> 
-/home/westbots/dev_ws/src/trekking_2025/rviz/config.rviz
+~/dev_ws/src/trekking_2025/rviz/config.rviz
 
 
 

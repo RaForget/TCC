@@ -1,0 +1,16 @@
+\section{Trabalhos Correlatos}
+\label{sec:trabalhos}
+
+% Sobre o que é, tecnologia utilizada, para que foi usado.
+% O que faz?
+% Por que é parecido?
+
+Lima e Silva (2022) \cite{robo2wd} propuseram um sistema que viabiliza a programação e controle de um robô carro 2WD (duas rodas), utilizando Unity e C\# para desenvolver o aplicativo. O aplicativo tem as funções de ser servidor para múltiplos dispositivos e fornecer controle manual sobre um robô. Essa proposta se assemelha ao projeto do meu trabalho ao utilizar um aplicativo para o controle do robô autônomo.
+
+Zago (2018) \cite{TelemetriaCompeticao} desenvolveu um sistema de telemetria sem fio para robôs de combate utilizando a tecnologia \textit{Bluetooth} para comunicação e o sistema operacional Android com um aplicativo para monitoramento do robô. O sistema de telemetria foi desenvolvido de uma maneira que não afeta diretamente  a funcionalidade, ou seja, o robô continua funcionando se o sistema de medição sofrer algum dano. Esse estudo se alinha a este trabalho pois utiliza a telemetria para comunicação com o robô e também utiliza um aplicativo para controle dos dados.
+
+Werneck et al. \cite{TelemetriaSolar} elaboraram um sistema de telemetria para uma embarcação movida a energia solar para monitorar dados elétricos e de desempenho do barco solar em tempo real. Utilizaram um ESP32 para processamento, LoRa para transmissão de dados a longas distâncias, .NET para desenvolvimento da interface e outras tecnologias. O sistema mede e transmite dados para uma estação terrestre via LoRa ou conexão 4G. Os dados são processados e exibidos em uma interface gráfica desenvolvida em .NET para monitoramento e análise. Este projeto é semelhante ao meu estudo por utilizar tecnologias de telemetria e interface gráfica para monitoramento em tempo real de parâmetros do sistema embarcado.
+
+Pico et al. \cite{Teleoperacao} propuseram um sistema de alarme e teleoperação em tempo real para falhas de navegação autônoma, comparando ROS 1 e ROS 2. O sistema integra uma interface web baseada em Vue.js e um \textit{joystick} com \textit{feedback} háptico para monitorar e controlar robôs em ambientes dinâmicos. A arquitetura utiliza sensores LiDAR (\textit{Light Detection and Ranging}), câmeras RGB-D e IMU para detectar colisões iminentes ou instabilidades em terrenos irregulares, acionando alertas visuais e vibrações no \textit{joystick}. Essa proposta se assemelha ao meu trabalho ao empregar uma interface gráfica para teleoperação e integração multimodal de sensores, com destaque para a comunicação via ROSBridge.
+
+Perin et al. \cite{KleytinhoBasico} desenvolveram um robô móvel autônomo para competições ao ar livre, utilizando um chassi comercial adaptado. O sistema de percepção do robô é composto por um sensor de orientação de 9 eixos e um encoder incremental para localização e odometria. Para o controle de trajetória e velocidade, foram implementados controladores PID em C++, e o sistema foi simulado em um ambiente ROS integrado com a plataforma V-REP antes da implementação física. A proposta se assemelha ao meu trabalho ao empregar um sistema embarcado para o controle autônomo de um robô, com a particularidade de focar na navegação por coordenadas pré-definidas em campo aberto.

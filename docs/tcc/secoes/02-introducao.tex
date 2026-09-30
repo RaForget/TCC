@@ -1,0 +1,39 @@
+\section{Introdução}
+
+% A introdução deve conter uma visão geral sobre o tema, uma explicação geral do que o trabalho pretende com ou sem suporte de trabalhos correlatos. Nesta seção também deve estar clara a descrição do problema, a justificativa, os objetivos e a organização do trabalho.
+
+% ----------------------------------- Contextualização do Tema -----------------------------------
+
+A robótica autônoma tem se tornado cada vez mais presente em aplicações críticas que abrangem desde operações em ambientes extremos até tarefas cotidianas de automação. Estudos recentes na área destacam que a eficácia operacional desses sistemas depende fundamentalmente da integração harmoniosa entre interfaces de usuário bem projetadas e arquiteturas de controle confiáveis. Essa combinação estratégica não apenas possibilita uma interação mais intuitiva entre humanos e máquinas, mas também garante a execução autônoma eficiente de missões complexas, mantendo sempre a capacidade de supervisão e intervenção humana quando necessária \cite{IntroAR}.
+ 
+% --------------------------------
+
+Eu gosto de estudar robótica autônoma, e tenho interesse em desenvolver uma interface gráfica para controle de robôs autônomos, integrando-a com o ROS (Robot Operating System) para facilitar a comunicação e o controle em tempo real. O objetivo é criar uma plataforma que permita a visualização de dados sensoriais, a definição de metas de navegação e o controle manual do robô, utilizando tecnologias modernas de desenvolvimento de interfaces. A motivação para este projeto surge da necessidade de melhorar a interação entre humanos e robôs, tornando o controle mais acessível e eficiente, especialmente em ambientes internos onde a navegação autônoma pode ser desafiadora \cite{IntroROS}.
+
+% -------------------------------- Estado da Arte / Revisão Breve --------------------------------
+
+Estudos na área de robótica autônoma demonstram que os sistemas de controle para essas plataformas normalmente empregam técnicas consolidadas como controladores PID (proporcional integral derivativo), lógica \textit{fuzzy} e redes neurais \cite{KleytinhoBasico}. No âmbito das interfaces gráficas, observa-se uma diversidade de abordagens, desde soluções \textit{desktop} baseadas em ROS até interfaces \textit{mobile} para Android, cada uma com seus requisitos específicos de integração \cite{robo2wd, Teleoperacao}. Um desafio comum identificado na literatura é a dificuldade em estabelecer uma comunicação eficiente entre o núcleo de controle do robô e diferentes tipos de interfaces gráficas, frequentemente resultando em atrasos indesejados ou perda de sincronismo nos dados, independentemente da plataforma utilizada \cite{IntroROS}.
+
+% ------------------------------------- Problema de Pesquisa -------------------------------------
+
+A integração entre interfaces gráficas e sistemas de controle representa um dos principais desafios na robótica autônoma, impactando diretamente a eficácia operacional das plataformas robóticas \cite{IntroAR, IntroROS}. Este trabalho propõe uma solução que combina interfaces intuitivas com algoritmos de controle adaptativos, atendendo aos requisitos críticos de usabilidade e desempenho em sistemas robóticos autônomos.
+
+% ---------------------------------------- Justificativa -----------------------------------------
+
+A relevância desta pesquisa se manifesta em três aspectos principais: a otimização da interação humano-robô, essencial para sistemas de controle e supervisão; a contribuição para arquiteturas padronizadas, facilitando a replicabilidade de soluções; e a aplicação em cenários complexos, como navegação em ambientes dinâmicos e inspeção automatizada \cite{IntroROS}.
+
+% ------------------------------------------ Trekking --------------------------------------------
+
+A modalidade \textit{Trekking} em competições robóticas desafia os robôs a navegarem autonomamente em terrenos irregulares, superando obstáculos utilizando fusão de dados sensoriais (LIDAR, IMU e câmeras) para mapeamento 3D e tomada de decisão \cite{KleytinhoBasico}. As regras avaliam não apenas a conclusão do percurso, mas também critérios como suavidade de movimento, eficiência energética e precisão de posicionamento (tolerâncias $\leq$ 5~cm). Essas regras tornam o ambiente de competição um \textit{benchmark} ideal para validar sistemas robóticos integrados, já que exige interfaces gráficas responsivas, algoritmos de controle adaptativos e comunicação robusta, requisitos que demonstram transferibilidade direta para aplicações práticas como agricultura de precisão e inspeção de infraestruturas \cite{KleytinhoBasico}.
+
+% ------------------------------------------ Objetivos -------------------------------------------
+
+O objetivo central do meu trabalho consiste no desenvolvimento de uma plataforma robótica integrada, com dois focos específicos: implementação de uma interface gráfica otimizada para controle robótico e validação em ambientes característicos de aplicações robóticas \cite{IntroAR, IntroROS}.
+
+% ------------------------------------- Metodologia (Breve) --------------------------------------
+
+Partindo da plataforma robótica já adquirida para o projeto, o desenvolvimento seguirá uma abordagem prática em três etapas integradas. Na fase inicial, será realizada a caracterização detalhada do \textit{hardware} disponível, mapeando suas capacidades e limitações para orientar o projeto da interface gráfica e dos algoritmos de controle. A implementação adotará uma arquitetura modular, com desenvolvimento paralelo e teste individual de cada subsistema (interface móvel, núcleo de controle e módulo de comunicação) seguindo padrões de interoperabilidade consagrados na área. A etapa final consistirá na integração progressiva e validação do sistema completo, com testes em condições reais de operação que aproveitem plenamente as capacidades da plataforma física disponível, assegurando robustez e desempenho adequados às aplicações planejadas.
+
+% ------------------------------------- Estrutura do Artigo --------------------------------------
+
+Este artigo está estruturado em sete seções. Na seção I, foi introduzido o tema da robótica autônoma e os desafios na integração interface-controle, com os objetivos do trabalho. Na seção II, foram abordados os conceitos teóricos fundamentais sobre navegação autônoma, algoritmos de controle e protocolos de comunicação. Na seção III, foram examinadas pesquisas anteriores sobre sistemas similares, identificando lacunas a serem superadas e ideias a serem exploradas. Na seção IV, foi descrita a metodologia em três fases: caracterização do hardware, desenvolvimento modular e validação. Na seção V, foram mostrados os resultados dos testes de desempenho do sistema. Na seção VI, foram apresentados os resultados finais em condições reais de operação. Na seção VII, foram destacadas as conclusões e sugestões para trabalhos futuros.

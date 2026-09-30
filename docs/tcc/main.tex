@@ -1,0 +1,157 @@
+%Modelo para escrita de artigos científicos do Trabalho de Conclusão de Curso da Engenharia de computação
+% Unoesc - Campus de Joaçaba
+
+%Se você é novo no latex, um bom lugar para começar é
+%https://pt.overleaf.com/learn
+
+\documentclass[10pt,conference,twocolumn]{unoesc} 
+
+% -------------------- Configuração para usar trecho de código --------------------
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+    language=C++,
+    basicstyle=\scriptsize\ttfamily, % Reduzido de \footnotesize para \scriptsize
+    keywordstyle=\bfseries,
+    stringstyle=\itshape,
+    commentstyle=\slshape,
+    numbers=left,
+    numberstyle=\scriptsize, % Ajustado de \tiny para \scriptsize
+    stepnumber=1,
+    numbersep=8pt, % Aumentado de 5pt para 8pt
+    showspaces=false,
+    showstringspaces=false,
+    frame=single,
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2,
+    xleftmargin=14pt, % Nova margem à esquerda para afastar o código da borda
+    xrightmargin=5pt, % Nova margem à direita para balancear
+    aboveskip=0.5em, % Reduz espaço acima do código
+    belowskip=0.5em, % Reduz espaço abaixo do código
+    literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+             {ã}{{\~a}}1 {õ}{{\~o}}1 {â}{{\^a}}1 {ê}{{\^e}}1 {ô}{{\^o}}1
+             {ç}{{\c{c}}}1 {à}{{\`a}}1,
+}
+
+% ---------------------------------------------------------------------------------
+
+\usepackage{csquotes}
+\input{configuracoes/includes.tex}
+\input{configuracoes/config.tex}
+
+\begin{document}
+
+
+  \title{Interface Gráfica Integrada ao ROS para Telemetria e Parametrização de Robô Autônomo}
+  \author
+  {
+    \IEEEauthorblockN{Rafael Corrêa Zart\\}
+    \IEEEauthorblockN{Orientador: Kleyton Hoffmann\\}
+    \IEEEauthorblockA{Universidade do Oeste de Santa Catarina - Unoesc\\
+                    ACET - Área de Ciências Exatas e Tecnológicas \\
+                    Curso de Engenharia de Computação - 
+                    Campus de Joaçaba/SC}
+  }
+
+\maketitle
+
+\input{secoes/01-resumo}
+\input{secoes/02-introducao}
+\input{secoes/03-referencial-teorico}
+\input{secoes/04-trabalhos-correlatos}
+\input{secoes/05-metodologia}
+\input{secoes/06-desenvolvimento}
+\input{secoes/07-resultados}
+\input{secoes/08-consideracoes_finais}
+%\input{secoes/10-instrucoes-gerais}
+
+
+\printbibliography
+
+% Apêndice: incluir após as referências
+\input{secoes/apendice}
+
+\end{document}
+%Modelo para escrita de artigos científicos do Trabalho de Conclusão de Curso da Engenharia de computação
+% Unoesc - Campus de Joaçaba
+
+%Se você é novo no latex, um bom lugar para começar é
+%https://pt.overleaf.com/learn
+
+\documentclass[10pt,conference,twocolumn]{unoesc} 
+
+% -------------------- Configuração para usar trecho de código --------------------
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+    language=C++,
+    basicstyle=\scriptsize\ttfamily, % Reduzido de \footnotesize para \scriptsize
+    keywordstyle=\bfseries,
+    stringstyle=\itshape,
+    commentstyle=\slshape,
+    numbers=left,
+    numberstyle=\scriptsize, % Ajustado de \tiny para \scriptsize
+    stepnumber=1,
+    numbersep=8pt, % Aumentado de 5pt para 8pt
+    showspaces=false,
+    showstringspaces=false,
+    frame=single,
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2,
+    xleftmargin=14pt, % Nova margem à esquerda para afastar o código da borda
+    xrightmargin=5pt, % Nova margem à direita para balancear
+    aboveskip=0.5em, % Reduz espaço acima do código
+    belowskip=0.5em, % Reduz espaço abaixo do código
+    literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+             {ã}{{\~a}}1 {õ}{{\~o}}1 {â}{{\^a}}1 {ê}{{\^e}}1 {ô}{{\^o}}1
+             {ç}{{\c{c}}}1 {à}{{\`a}}1,
+}
+
+% ---------------------------------------------------------------------------------
+
+\usepackage{csquotes}
+\input{configuracoes/includes.tex}
+\input{configuracoes/config.tex}
+
+\begin{document}
+
+
+  \title{Interface Gráfica Integrada ao ROS para Telemetria e Parametrização de Robô Autônomo}
+  \author
+  {
+    \IEEEauthorblockN{Rafael Corrêa Zart\\}
+    \IEEEauthorblockN{Orientador: Kleyton Hoffmann\\}
+    \IEEEauthorblockA{Universidade do Oeste de Santa Catarina - Unoesc\\
+                    ACET - Área de Ciências Exatas e Tecnológicas \\
+                    Curso de Engenharia de Computação - 
+                    Campus de Joaçaba/SC}
+  }
+
+\maketitle
+
+\input{secoes/01-resumo}
+\input{secoes/02-introducao}
+\input{secoes/03-referencial-teorico}
+\input{secoes/04-trabalhos-correlatos}
+\input{secoes/05-metodologia}
+\input{secoes/06-desenvolvimento}
+\input{secoes/07-resultados}
+\input{secoes/08-consideracoes_finais}
+%\input{secoes/10-instrucoes-gerais}
+
+
+\printbibliography
+
+
+
+\end{document}

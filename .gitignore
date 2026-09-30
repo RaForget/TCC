@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes e configurações locais
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Demonstrações locais: não incluir vídeos no repositório
+Vídeos/
+
+# LaTeX: arquivos regeneráveis do documento
+docs/tcc/*.aux
+docs/tcc/*.bcf
+docs/tcc/*.blg
+docs/tcc/*.fdb_latexmk
+docs/tcc/*.fls
+docs/tcc/*.log
+docs/tcc/*.out
+docs/tcc/*.run.xml
+docs/tcc/*.synctex.gz

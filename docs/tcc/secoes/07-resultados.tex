@@ -1,0 +1,18 @@
+\section{Resultados}
+\label{sec:resultados}
+
+Na Figura \ref{fig:visualizacao}, referente ao módulo de visualização da interface, é apresentado o mapa 2D junto com a tecnologia do LiDAR para identificação de obstáculos, informações sobre a velocidade, posição e rotação do robô atualizados em tempo real. Ao lado esquerdo existe uma barra lateral que permite a configuração do IP e da porta para conexão com o sistema rodando ROS, um \textit{switch} para alterar o estado da atualização de parâmetros em tempo real (ligada/desligada), e um componente para navegar entre as telas da interface. Ao clicar em qualquer ponto do mapa um \textit{waypoint} é definido, ao mesmo tempo, um círculo verde é desenhado em um segundo mapa para \textit{feedback} visual de onde foi definido o \textit{waypoint}, conforme mostra a Figura \ref{fig:mostra_waypoint}, e as coordenadas são salvas ficando prontas para o envio ao ROS, feito pelo botão ``Enviar \textit{waypoint}''.
+
+% As figuras foram movidas para o Apêndice. Consulte o Apêndice A para as imagens completas.
+
+A Figura \ref{fig:rvizwaypoint} mostra um sistema Linux rodando o \textit{framework} ROS, com dois terminais e o software RViz na tela. No terminal localizado no canto superior esquerdo, mostra o tópico \texttt{/goal\_pose} após ter recebido o \textit{waypoint} definido na interface. Ao receber a atualização no tópico, o ROS envia os dados ao RViz e o robô dentro da simulação inicia o trajeto até o destino. O terminal no canto inferior esquerdo mostra o tópico \texttt{/cmd\_vel} com o ROS publicando a velocidade do robô em tempo real. Nesse modo de navegação por \textit{waypoint} a velocidade é definida automaticamente pelo ROS. E o \textit{software} à direita da imagem é o RViz utilizado para testar as funcionalidades da interface.
+
+% Figura movida para o Apêndice. Consulte Apêndice A.
+
+A Figura \ref{fig:controle} representa o módulo de controle da interface, exibindo uma tela com um interruptor para ativar o controle manual e uma seção de controle direcional para gerenciar os movimentos do robô. Adicionalmente, são apresentados campos interativos para a configuração de parâmetros, tais como a velocidade máxima linear e angular.
+
+% Figura movida para o Apêndice. Consulte Apêndice A.
+
+A Figura \ref{fig:rvizcontrole} mostra o \textit{software} RViz e um terminal com o tópico \texttt{/cmd\_vel} sendo atualizado pela interface de controle. Os únicos objetos utilizados no tópico são o \textbf{x} da seção linear e o \textbf{z} da seção angular. Os controles para mover para frente e para trás utilizam apenas o \textbf{x} para se movimentar: para frente o valor é positivo e para trás negativo. Para fazer curvas, a velocidade angular e linear é a mesma, para virar para a esquerda os valores são iguais, porém para a direita o valor de \textbf{z} é negativo. As velocidades enviadas ao tópico \texttt{/cmd\_vel} podem ser definidas via interface no módulo de controle, nos dois \textit{sliders} localizados na parte inferior da tela mostrada na figura \ref{fig:controle}: o da esquerda define a velocidade máxima linear e o da direita define a velocidade máxima angular.
+
+O sistema foi submetido a testes de campo durante uma competição, operando sob forte interferência eletromagnética na frequência de 5 GHz. A interface demonstrou estabilidade na transmissão de dados, permitindo, sem latência perceptível, o envio de metas de navegação (\textit{waypoints}), a atualização visual do mapa de ocupação e o controle direto dos atuadores do robô.

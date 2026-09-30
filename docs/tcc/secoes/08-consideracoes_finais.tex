@@ -1,0 +1,15 @@
+\section{Considerações Finais}
+
+Este trabalho teve como objetivo principal o desenvolvimento de uma interface gráfica para telemetria e parametrização de robôs autônomos, integrada ao ROS via ROSBridge, com foco em usabilidade e comunicação em tempo real, servindo como um modelo de integração real entre interface e sistema robótico. Os testes realizados demonstram a viabilidade e eficácia do sistema, com a implementação bem-sucedida de funcionalidades como o mapeamento 2D com LiDAR e a gestão de \textit{waypoints}.
+
+A interface facilita a interação humano-robô em ambientes internos, utilizando Streamlit e ROSBridge para garantir uma visualização intuitiva dos dados e uma comunicação eficiente.
+
+Na segunda fase de desenvolvimento do TCC, o objetivo foi expandir as capacidades da interface, implementando a gestão de \textit{waypoints}, a plotagem do mapa em tempo real dentro do módulo de visualização, a integração com a nuvem de pontos do LiDAR, e a validação do projeto através da participação em uma competição de robótica.
+
+O trabalho oferece uma contribuição significativa ao demonstrar a possibilidade de uma integração eficaz e escalável com sistemas robóticos, com potencial para avanços substanciais na robótica autônoma, dependendo da continuidade do desenvolvimento e aprofundamento dos testes.
+
+A biblioteca Streamlit, embora ágil para prototipagem rápida, apresentou certas restrições em funcionalidades específicas, como a combinação de markdown com a formatação própria do Streamlit, onde as configurações de um sobrepõem as do outro sem um comportamento padronizado. Também limitou o desenvolvimento do trabalho no módulo de controle, onde a criação de botões personalizados e a disposição dos mesmos na interface não puderam ser totalmente customizadas, restringindo a experiência do usuário. Futuras versões da biblioteca podem vir a solucionar essas limitações, ampliando as possibilidades de desenvolvimento de interfaces mais sofisticadas.
+
+Como propostas para trabalhos futuros, é possível aprimorar o módulo de controle com a implementação de uma funcionalidade de controle manual via teclado, incluindo suporte a teclas simultâneas para uma operação mais intuitiva. Adicionalmente, a navegação autônoma pode ser expandida para permitir a criação de rotas complexas, informando múltiplos \textit{waypoints} sequenciais que o robô deve percorrer, incrementando a função atual de navegação por ponto único. Por fim, outra melhoria consiste na refatoração da plotagem do mapa para unificar a definição e a visualização de \textit{waypoints} em um único componente visual, otimizando a interface do usuário ao remover a necessidade de um mapa secundário para \textit{feedback}.
+
+    

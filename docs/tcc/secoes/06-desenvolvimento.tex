@@ -1,0 +1,40 @@
+\section{Desenvolvimento}
+
+A interface gráfica encontra-se concluída, tanto o componente visual (telas apresentadas na Seção \ref{sec:resultados}), quanto as funcionalidades como o mapa 2D gerado pelo LiDAR dentro do ROS e a implementação de \textit{waypoints} para navegação autônoma. As funcionalidades de controle estão operacionais.
+
+A interface foi desenvolvida utilizando a biblioteca Streamlit, que proporcionou a estrutura, o funcionamento e a usabilidade das páginas. Adicionalmente, foi empregado CSS, aproveitando o suporte nativo do Streamlit a \textit{markdown}, para realizar o posicionamento, redimensionamento e exibição de imagens, e também para estilização e responsividades dos botões para controle manual.
+
+Os \textit{scripts} destinados à comunicação com o ROS (\textit{Robot Operating System}) foram integrados à interface e estão operacionais. Essa comunicação é estabelecida através de tópicos ROS, utilizando o paradigma \textit{publisher}/\textit{subscriber}. Por meio do \textit{script} de envio, que atua como um \textit{publisher}, é possível ajustar a velocidade linear e angular do robô. Testes iniciais com o RViz demonstraram o sucesso na comunicação de parâmetros de velocidade, com os ajustes sendo visualizados em tempo real na simulação robótica. Já o \textit{script} de requisição, funcionando como um \textit{subscriber}, permite a obtenção de dados para atualização das informações exibidas na interface (em processo de desenvolvimento).
+
+Para viabilizar a comunicação com o ROS, o \textit{script} de requisição estabelece uma conexão via WebSocket utilizando o ROSBridge, configurando o endereço IP e a porta apropriados. Os testes de conexão e subscrição foram bem-sucedidos, permitindo o recebimento e visualização de qualquer tópico que está sendo utilizado pelo ROS naquele momento, incluindo os parâmetros de velocidade do robô via terminal. Após a conexão, este \textit{script} atua como um \textit{subscriber}, inscrevendo-se em tópicos determinados para receber dados relevantes do sistema robótico, conforme ilustrado no Código \ref{lst:cmd_vel_subscription}.
+
+\begin{lstlisting}[caption={Subscrição ao tópico /cmd\_vel em ROS},label={lst:cmd_vel_subscription}]
+    # Subscrevendo ao tópico /cmd_vel
+    cmd_vel_subscriber = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+
+    # Conectando o callback para receber mensagens via prompt de comando
+    cmd_vel_subscriber.subscribe(cmd_vel_callback)
+\end{lstlisting}
+
+Uma vez inscrito no tópico, os dados passam a ser exibidos no terminal.
+
+O processo de envio de dados segue um procedimento análogo ao da requisição, mas com a interface atuando como um \textit{publisher}. Neste cenário, a interface envia mensagens para tópicos ROS específicos, que são então consumidas pelo cliente ROS (neste caso, o robô virtual no RViz ou o robô físico). O Código \ref{lst:cmd_vel_publisher} demonstra a estrutura para a publicação de dados no tópico \texttt{cmd\_vel}.
+
+\begin{lstlisting}[caption={Código para publicação de dados em tópico ROS},label={lst:cmd_vel_publisher}]
+    # Cria um tópico /cmd_vel com tipo Twist
+    cmd_vel_publisher = roslibpy.Topic(client, '/cmd_vel', 'geometry_msgs/Twist')
+
+    # Define velocidades linear e angular
+    linear_vel = 0.18421052631578947
+    angular_vel = 0.1578947368421052
+
+    # Cria a mensagem Twist
+    twist = {
+        'linear': {'x': linear_vel, 'y': 0.0, 'z': 0.0},
+        'angular': {'x': 0.0, 'y': 0.0, 'z': angular_vel}
+    }
+
+    print(f'Received cmd_vel: Linear Velocity: {linear_vel}, Angular Velocity: {angular_vel}')
+\end{lstlisting}
+
+Os arquivos responsáveis pelo processamento e tratamento dos dados recebidos via terminal encontram-se testados e finalizados.
